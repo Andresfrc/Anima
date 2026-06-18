@@ -7,21 +7,18 @@ import { useStore } from '../store/useStore';
 import { MoodType } from '../constants/theme';
 
 // ── ISO completo con offset local, ej: "2026-06-17T20:30:00-05:00" ───────────
-// FIX: evita que la fecha se guarde un día adelante por diferencia UTC vs local
 function getLocalISOString(): string {
   const d = new Date();
-  const tzOffset = -d.getTimezoneOffset(); // en minutos
+  const tzOffset = -d.getTimezoneOffset();
   const sign = tzOffset >= 0 ? '+' : '-';
   const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0');
   const offsetStr = `${sign}${pad(tzOffset / 60)}:${pad(tzOffset % 60)}`;
-
   const y = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const h = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
   const sec = String(d.getSeconds()).padStart(2, '0');
-
   return `${y}-${mo}-${day}T${h}:${min}:${sec}${offsetStr}`;
 }
 
@@ -128,8 +125,23 @@ export async function saveUserProgress(userId: string) {
 
 // ── 4. GUARDAR mood en mood_logs + actualizar progreso ────────────────────────
 export async function saveMoodToSupabase(userId: string, mood: string, note?: string) {
-  // FIX: usar fecha local con offset para que el día coincida con hora Colombia
   const localISO = getLocalISOString();
+  const todayStr = localISO.substring(0, 10); // "2026-06-17"
+
+  // FIX: verificar si ya existe un registro hoy antes de insertar
+  const { data: existing } = await supabase
+    .from('mood_logs')
+    .select('id')
+    .eq('user_id', userId)
+    .gte('created_at', `${todayStr}T00:00:00`)
+    .lte('created_at', `${todayStr}T23:59:59`)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    console.log(`[MOOD] ⚠️ Ya existe registro hoy (${todayStr}), no se guarda duplicado`);
+    return;
+  }
+
   console.log(`[MOOD] Guardando mood "${mood}" con fecha local: ${localISO}`);
 
   const { error } = await supabase
@@ -138,7 +150,7 @@ export async function saveMoodToSupabase(userId: string, mood: string, note?: st
       user_id:    userId,
       mood,
       note:       note || null,
-      created_at: localISO, // ← antes era new Date().toISOString() (UTC)
+      created_at: localISO,
     });
 
   if (error) {

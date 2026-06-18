@@ -102,23 +102,35 @@ export default function ActividadesScreen() {
   }, [mockLateNight]);
 
   const syncActivityCompletion = async (activity: ActivityDefinition) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase.from('activity_logs').insert({
-        user_id:       user.id,
-        activity_id:   activity.id,
-        activity_name: activity.title,
-        plan:          currentPlan ?? null,
-        started_at:    new Date().toISOString(),
-        completed:     true,
-      });
-      await saveUserProgress(user.id);
-    } catch (err) {
-      console.log('Error registrando actividad:', err);
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log('[ACTIVIDAD] ❌ No hay usuario autenticado');
+      return;
     }
-  };
+
+    console.log(`[ACTIVIDAD] Guardando: "${activity.title}" (id: ${activity.id}) | plan: ${currentPlan}`);
+
+    const { error } = await supabase.from('activity_logs').insert({
+      user_id:       user.id,
+      activity_id:   activity.id,
+      activity_name: activity.title,
+      plan:          currentPlan ?? null,
+      started_at:    new Date().toISOString(),
+      completed:     true,
+    });
+
+    if (error) {
+      console.log('[ACTIVIDAD] ❌ Error:', error.message, '| code:', error.code);
+    } else {
+      console.log(`[ACTIVIDAD] ✅ "${activity.title}" guardada correctamente`);
+    }
+
+    await saveUserProgress(user.id);
+  } catch (err) {
+    console.log('[ACTIVIDAD] ❌ Error inesperado:', err);
+  }
+};
 
   const logAndNavigate = (activity: ActivityDefinition, route: string) => {
     if (isNavigatingRef.current) return;
