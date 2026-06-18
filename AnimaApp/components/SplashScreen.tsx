@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withDelay,
@@ -16,6 +16,45 @@ interface SplashScreenProps {
   onFinish: () => void;
 }
 
+const BUBBLE_COUNT = 8;
+
+/**
+ * Burbuja flotante del splash. Cada una posee sus propios hooks de animación.
+ * FIX: antes los hooks (useSharedValue/useAnimatedStyle) se llamaban dentro de un
+ * .map() en el componente padre, violando las reglas de hooks de React.
+ */
+function Bubble({ index }: { index: number }) {
+  const x = useSharedValue(Math.random() * width);
+  const y = useSharedValue(height);
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0);
+  const size = useMemo(() => 8 + Math.random() * 12, []);
+
+  useEffect(() => {
+    const delay = 500 + index * 200;
+    opacity.value = withDelay(delay, withTiming(0.5, { duration: 600 }));
+    scale.value = withDelay(delay, withTiming(1, { duration: 600 }));
+    y.value = withDelay(
+      delay,
+      withTiming(Math.random() * height * 0.6, { duration: 2500, easing: Easing.out(Easing.ease) })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const bStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+    top: y.value,
+    left: x.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[styles.bubble, { width: size, height: size, borderRadius: size / 2 }, bStyle]}
+    />
+  );
+}
+
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const mascotScale = useSharedValue(0);
   const mascotY = useSharedValue(30);
@@ -25,12 +64,6 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const glowScale = useSharedValue(0.6);
   const glowOpacity = useSharedValue(0);
   const mainOpacity = useSharedValue(1);
-  const bubbles = Array.from({ length: 8 }).map(() => ({
-    x: useSharedValue(Math.random() * width),
-    y: useSharedValue(height),
-    opacity: useSharedValue(0),
-    scale: useSharedValue(0),
-  }));
 
   useEffect(() => {
     // 1. Glow appears
@@ -51,15 +84,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     // 4. Subtitle fades in
     subtitleOpacity.value = withDelay(1000, withTiming(1, { duration: 400 }));
 
-    // 5. Bubbles float up
-    bubbles.forEach((b, i) => {
-      const delay = 500 + i * 200;
-      b.opacity.value = withDelay(delay, withTiming(0.5, { duration: 600 }));
-      b.scale.value = withDelay(delay, withTiming(1, { duration: 600 }));
-      b.y.value = withDelay(delay,
-        withTiming(Math.random() * height * 0.6, { duration: 2500, easing: Easing.out(Easing.ease) })
-      );
-    });
+    // 5. Las burbujas se animan solas dentro del componente Bubble.
 
     // 6. Pulsing glow
     glowScale.value = withDelay(1500, withRepeat(
@@ -103,21 +128,9 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
       <AuroraBackground />
 
       {/* Floating bubbles */}
-      {bubbles.map((b, i) => {
-        const bStyle = useAnimatedStyle(() => ({
-          transform: [{ scale: b.scale.value }],
-          opacity: b.opacity.value,
-          top: b.y.value,
-          left: b.x.value,
-        }));
-        const size = 8 + Math.random() * 12;
-        return (
-          <Animated.View
-            key={i}
-            style={[styles.bubble, { width: size, height: size, borderRadius: size / 2 }, bStyle]}
-          />
-        );
-      })}
+      {Array.from({ length: BUBBLE_COUNT }).map((_, i) => (
+        <Bubble key={i} index={i} />
+      ))}
 
       {/* Glow */}
       <Animated.View style={[styles.glow, glowAnimStyle]} />
@@ -129,7 +142,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
       {/* Title */}
       <Animated.View style={titleStyle}>
-        <Text style={styles.title}>Aníma</Text>
+        <Text style={styles.title}>Ánima</Text>
       </Animated.View>
 
       {/* Subtitle */}

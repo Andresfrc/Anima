@@ -47,7 +47,7 @@ export default function DashboardOverview() {
       >
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight">Overview</h1>
-          <p className="text-zinc-400 mt-1">Monitorea el estado general de la comunidad Aníma.</p>
+          <p className="text-zinc-400 mt-1">Monitorea el estado general de la comunidad Ánima.</p>
         </div>
       </motion.div>
 
@@ -72,7 +72,7 @@ export default function DashboardOverview() {
                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                Monitoreo Activo
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">El ecosistema de Aníma está en equilibrio.</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">El ecosistema de Ánima está en equilibrio.</h2>
             <p className="text-zinc-300 max-w-2xl text-sm md:text-base leading-relaxed">
                Lumi está monitoreando activamente tu comunidad. Estos datos reflejan el estado real de tu plataforma en tiempo real.
             </p>
@@ -109,7 +109,7 @@ export default function DashboardOverview() {
             title: "Actividades Disponibles",
             icon: Activity,
             value: isLoadingAnalytics ? "..." : analytics?.overviewStats.activitiesCount.toLocaleString() ?? "0",
-            sub: "En el catálogo de Aníma"
+            sub: "En el catálogo de Ánima"
           },
         ].map((stat, i) => (
           <motion.div key={i} variants={itemVars}>

@@ -328,7 +328,7 @@ export default function PerfilScreen() {
 
         <View style={styles.footerSection}>
           <Mascot size={100} variant="star" />
-          <Text style={[styles.versionText, { color: colors.textLight }]}>Aníma v1.0.2 • Build 2026</Text>
+          <Text style={[styles.versionText, { color: colors.textLight }]}>Ánima v1.0.2 • Build 2026</Text>
         </View>
 
         <View style={{ height: 110 }} />

@@ -236,7 +236,7 @@ export function AdaptiveSOSButton() {
               </Pressable>
 
               <Text style={[styles.crisisNote, { color: colors.textLight }]}>
-                Aníma no reemplaza atención profesional. Si estás en peligro, llama ahora.
+                Ánima no reemplaza atención profesional. Si estás en peligro, llama ahora.
               </Text>
             </View>
 

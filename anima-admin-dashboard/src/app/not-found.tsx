@@ -19,7 +19,7 @@ export default function NotFound() {
         </div>
         <div className="space-y-2">
           <h1 className="text-4xl font-bold text-white">404</h1>
-          <p className="text-zinc-400 text-lg">Esta página no existe en el ecosistema de Aníma.</p>
+          <p className="text-zinc-400 text-lg">Esta página no existe en el ecosistema de Ánima.</p>
         </div>
         <Link href="/">
           <Button className="bg-white text-black hover:bg-zinc-200 h-11 px-6">

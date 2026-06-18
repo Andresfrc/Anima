@@ -13,7 +13,7 @@ import { ChatBubble, TypingIndicator, GlassCard, Mascot } from '../../components
 import { useStore } from '../../store/useStore';
 import { getAvatarSource } from '../../constants/avatars';
 
-const mascotAvatar = require('../../assets/images/mascot/Lumi_chat.jpg');
+const mascotAvatar = require('../../assets/images/mascot/lumi-empatico.png');
 
 export default function ChatScreen() {
   const { colors, isDark } = useTheme();

@@ -7,6 +7,7 @@ export interface AdminProfile {
   email: string;
   username?: string;
   role?: string;
+  created_at?: string;
 }
 
 export interface AnalyticsData {
@@ -38,7 +39,9 @@ export interface AppSetting {
 export interface AdminStore {
   // Admin profile
   adminProfile: AdminProfile | null;
+  isLoadingProfile: boolean;
   fetchAdminProfile: () => Promise<void>;
+  updateAdminProfile: (data: { username?: string | null }) => Promise<void>;
   clearProfile: () => void;
 
   // Analytics
@@ -65,14 +68,16 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   // ── Admin Profile ─────────────────────────────────────────────────────────
   adminProfile: null,
+  isLoadingProfile: false,
   fetchAdminProfile: async () => {
     console.log('[ADMIN] Cargando perfil...');
+    set({ isLoadingProfile: true });
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { console.warn('[ADMIN] No hay usuario autenticado'); return; }
+    if (!user) { console.warn('[ADMIN] No hay usuario autenticado'); set({ isLoadingProfile: false }); return; }
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, avatar')
+      .select('id, username, avatar, created_at')
       .eq('id', user.id)
       .single();
 
@@ -81,12 +86,31 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
     set({
       adminProfile: {
-        id:       user.id,
-        email:    user.email ?? '',
-        username: data?.username ?? undefined,
-        role:     'admin',
-      }
+        id:         user.id,
+        email:      user.email ?? '',
+        username:   data?.username ?? undefined,
+        role:       'admin',
+        created_at: data?.created_at ?? user.created_at ?? undefined,
+      },
+      isLoadingProfile: false,
     });
+  },
+  updateAdminProfile: async ({ username }) => {
+    const current = get().adminProfile;
+    if (!current) { console.warn('[ADMIN] No hay perfil que actualizar'); return; }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ username: username ?? null })
+      .eq('id', current.id);
+
+    if (error) {
+      console.error('[ADMIN] Error actualizando perfil:', error.message);
+      throw error;
+    }
+
+    set({ adminProfile: { ...current, username: username ?? undefined } });
+    console.log('[ADMIN] ✅ Perfil actualizado');
   },
   clearProfile: () => { console.log('[ADMIN] Perfil limpiado'); set({ adminProfile: null }); },
 

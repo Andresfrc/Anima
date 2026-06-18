@@ -1,18 +1,18 @@
-# Aníma — Documentación Clínica y de Diseño
+# Ánima — Documentación Clínica y de Diseño
 
 > **Versión:** 1.0 — Febrero 2026  
-> **Propósito:** Justificación clínica, psicológica y de diseño de cada funcionalidad de la aplicación Aníma.  
+> **Propósito:** Justificación clínica, psicológica y de diseño de cada funcionalidad de la aplicación Ánima.  
 > **Audiencia:** Evaluadores académicos, psicólogos revisores, equipo de desarrollo.
 
 ---
 
 ## 1. Filosofía General de la Aplicación
 
-### 1.1 ¿Qué es Aníma?
-Aníma es una aplicación móvil de acompañamiento emocional diseñada para jóvenes universitarios (18–30 años). **No es una herramienta de diagnóstico ni un sustituto de terapia profesional.** Es un espacio seguro digital que ofrece herramientas de psicoeducación, autorregulación y activación conductual basadas en evidencia.
+### 1.1 ¿Qué es Ánima?
+Ánima es una aplicación móvil de acompañamiento emocional diseñada para jóvenes universitarios (18–30 años). **No es una herramienta de diagnóstico ni un sustituto de terapia profesional.** Es un espacio seguro digital que ofrece herramientas de psicoeducación, autorregulación y activación conductual basadas en evidencia.
 
 ### 1.2 Bases Teóricas Generales
-| Marco Teórico | Aplicación en Aníma |
+| Marco Teórico | Aplicación en Ánima |
 |---|---|
 | **Terapia Cognitivo-Conductual (TCC)** | Reestructuración cognitiva, diarios de pensamiento, activación conductual |
 | **Terapia de Aceptación y Compromiso (ACT)** | Aceptación emocional sin juicio, valores como motor de acción |
@@ -24,7 +24,7 @@ Aníma es una aplicación móvil de acompañamiento emocional diseñada para jó
 | **Teoría de la Autodeterminación (Deci & Ryan)** | Autonomía en selección de rutas, competencia vía gamificación, conexión vía comunidad |
 
 ### 1.3 Principio de Personalización Clínica
-En lugar de ofrecer un set genérico de herramientas, Aníma dirige al usuario a una **ruta emocional personalizada** basada en un triage inicial. Esto se basa en el principio clínico de que las intervenciones son más eficaces cuando están adaptadas al perfil del paciente (Norcross & Wampold, 2011).
+En lugar de ofrecer un set genérico de herramientas, Ánima dirige al usuario a una **ruta emocional personalizada** basada en un triage inicial. Esto se basa en el principio clínico de que las intervenciones son más eficaces cuando están adaptadas al perfil del paciente (Norcross & Wampold, 2011).
 
 ---
 
@@ -287,7 +287,7 @@ Las 5 rutas son perfiles emocionales, no diagnósticos. Cada una agrupa estrateg
 
 ### 6.1 Disclaimer Médico
 La app incluye un aviso clínico accesible desde el Perfil que establece claramente:
-- Aníma **no reemplaza** a un psicólogo ni psiquiatra.
+- Ánima **no reemplaza** a un psicólogo ni psiquiatra.
 - Si los síntomas persisten > 2 semanas o hay ideación suicida, se recomienda buscar ayuda profesional.
 - Se proporcionan recursos de emergencia.
 
@@ -297,7 +297,7 @@ La app incluye un aviso clínico accesible desde el Perfil que establece clarame
 - **Cifrado:** Los datos en reposo están protegidos por el sistema operativo del dispositivo.
 
 ### 6.3 Líneas Rojas de Diseño
-| Lo que Aníma **NO hace** | Razón |
+| Lo que Ánima **NO hace** | Razón |
 |---|---|
 | No diagnostica | Solo un profesional de salud mental puede diagnosticar |
 | No prescribe medicación | Fuera del alcance de una app de bienestar |

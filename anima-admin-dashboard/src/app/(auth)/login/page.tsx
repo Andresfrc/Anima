@@ -95,7 +95,7 @@ export default function LoginPage() {
                 Acceso Administrativo
               </CardTitle>
               <CardDescription className="text-zinc-400">
-                Ingresa tus credenciales para administrar la comunidad Aníma.
+                Ingresa tus credenciales para administrar la comunidad Ánima.
               </CardDescription>
             </div>
           </CardHeader>

@@ -4,10 +4,11 @@
 import React, { useEffect } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
-import { Colors, Gradients, BorderRadius } from '../../constants/theme';
+import { Colors, BorderRadius } from '../../constants/theme';
+
+// Avatar de Lumi que aparece junto a cada mensaje del bot.
+const lumiAvatar = require('../../assets/images/mascot/Lumi-Perfil.png');
 
 interface ChatBubbleProps {
   text: string;
@@ -22,9 +23,7 @@ export function ChatBubble({ text, isUser, showAvatar, userAvatarSource }: ChatB
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
       {!isUser && showAvatar && (
-        <LinearGradient colors={[...Gradients.jewel]} style={styles.bubbleAvatar}>
-          <Ionicons name="happy-outline" size={16} color="#FFF" />
-        </LinearGradient>
+        <Image source={lumiAvatar} style={styles.bubbleAvatar} resizeMode="cover" />
       )}
       <View style={[
         styles.bubble,
@@ -64,9 +63,7 @@ export function TypingIndicator() {
 
   return (
     <View style={[styles.bubbleRow]}>
-      <LinearGradient colors={[...Gradients.jewel]} style={styles.bubbleAvatar}>
-        <Ionicons name="happy-outline" size={16} color="#FFF" />
-      </LinearGradient>
+      <Image source={lumiAvatar} style={styles.bubbleAvatar} resizeMode="cover" />
       <View style={[
         styles.bubble, styles.bubbleBot, 
         { 

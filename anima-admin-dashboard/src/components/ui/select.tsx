@@ -53,8 +53,13 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
-  position = "item-aligned",
-  align = "center",
+  // FIX: "popper" ancla el menú justo debajo del trigger. Con "item-aligned"
+  // (el valor anterior) el menú intentaba alinear el item seleccionado sobre el
+  // trigger y, dentro de un Dialog, calculaba mal la posición y abría el
+  // desplegable FUERA de la pantalla (off-screen abajo) → parecía que "no se
+  // desplegaba". Afecta a los selects de color, ícono y ruta del CMS.
+  position = "popper",
+  align = "start",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (

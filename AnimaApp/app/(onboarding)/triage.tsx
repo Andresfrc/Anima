@@ -36,7 +36,7 @@ const TRIAGE_QUESTIONS = [
   },
   {
     id: 'goal',
-    question: "Si Aníma pudiera ayudarte con una sola cosa hoy, ¿cuál sería?",
+    question: "Si Ánima pudiera ayudarte con una sola cosa hoy, ¿cuál sería?",
     options: [
       { text: "Encontrar paz y manejar mi estrés", scores: { R: 0, A: 0, B: 3, D: 0, S: 0 } },
       { text: "Aprender a tratarme con más cariño y menos culpa", scores: { R: 0, A: 3, B: 0, D: 0, S: 0 } },
@@ -123,7 +123,7 @@ export default function TriageScreen() {
       <View style={[styles.container, { backgroundColor: colors.bgPrimary }]}>
          <Animated.View entering={FadeIn.duration(1000)} style={[styles.analyzingWrapper, { backgroundColor: colors.bgPrimary }]}>
            <Mascot variant="meditating" size={150} />
-           <Text style={[styles.analyzingTitle, { color: colors.textPrimary }]}>Aníma está pensando...</Text>
+           <Text style={[styles.analyzingTitle, { color: colors.textPrimary }]}>Ánima está pensando...</Text>
            <Text style={[styles.analyzingSubtitle, { color: colors.textSecondary }]}>Diseñando la experiencia perfecta para ti, {userName || 'viajero/a'}.</Text>
          </Animated.View>
       </View>

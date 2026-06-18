@@ -133,7 +133,7 @@ export default function RespiracionScreen() {
           {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
         </Text>
         <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
-          Respira junto a Aníma. Sigue el ritmo visual para relajarte. 🍃
+          Respira junto a Ánima. Sigue el ritmo visual para relajarte. 🍃
         </Text>
       </Animated.View>
 

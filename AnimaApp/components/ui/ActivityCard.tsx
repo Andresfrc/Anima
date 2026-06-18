@@ -1,9 +1,9 @@
 /**
  * ActivityCard — Tarjeta para la lista de actividades con animación staggered.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
@@ -28,62 +28,63 @@ export function ActivityCard({
 }: ActivityCardProps) {
   const { colors } = useTheme();
 
+  // FIX (raíz): la animación de entrada va SOLO en opacidad, sobre un wrapper
+  // interno. El contenedor externo es un View normal que siempre ocupa su hueco
+  // real en el layout, así que la tarjeta no puede quedar "corrida" ni apilarse
+  // sobre la siguiente aunque la lista se re-renderice a mitad de animación
+  // (p. ej. cuando llegan los datos del CMS desde Supabase).
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+  }, [delay, opacity]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
   return (
-    // FIX: el wrapper tiene marginTop extra cuando hay badge para que no
-    // se superponga con la tarjeta de arriba (el badge usa top: -12)
-    //
-    // FIX 2: se cambió FadeInUp por FadeIn (solo opacidad, sin translateY).
-    // FadeInUp anima también la posición vertical; cuando la lista se
-    // actualiza justo después del montaje (p. ej. al llegar los datos de
-    // Supabase), esa animación de posición puede interrumpirse a mitad de
-    // camino y dejar el contenido visual desplazado de su espacio real en
-    // el layout — eso es lo que causaba los huecos vacíos y la tarjeta
-    // superpuesta. FadeIn solo anima opacidad, así que no puede "atascarse"
-    // en una posición incorrecta.
-    <Animated.View
-      entering={FadeIn.duration(400).delay(delay)}
-      style={isRecommended ? styles.wrapperWithBadge : styles.wrapper}
-    >
-      <GlassCard
-        onPress={onPress}
-        style={[
-          styles.activityCard,
-          isRecommended && { borderColor: '#FFD700', borderWidth: 1 },
-        ] as any}
-      >
-        {isRecommended && (
-          <View style={styles.recommendedBadge}>
-            <Ionicons name="star" size={12} color="#000" />
-            <Text style={styles.recommendedText}>Recomendado</Text>
+    <View style={isRecommended ? styles.wrapperWithBadge : styles.wrapper}>
+      <Animated.View style={fadeStyle}>
+        <GlassCard
+          onPress={onPress}
+          style={[
+            styles.activityCard,
+            isRecommended && { borderColor: '#FFD700', borderWidth: 1 },
+          ] as any}
+        >
+          {isRecommended && (
+            <View style={styles.recommendedBadge}>
+              <Ionicons name="star" size={12} color="#000" />
+              <Text style={styles.recommendedText}>Recomendado</Text>
+            </View>
+          )}
+
+          {gradient ? (
+            <LinearGradient
+              colors={gradient}
+              style={styles.activityIconWrap}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name={icon as any} size={24} color="#FFF" />
+            </LinearGradient>
+          ) : (
+            <View style={[styles.activityIconWrap, { backgroundColor: color + '18' }]}>
+              <Ionicons name={icon as any} size={24} color={color} />
+            </View>
+          )}
+
+          <View style={styles.activityContent}>
+            {/* FIX: líneas fijas → las descripciones largas del CMS ya no
+                deforman ni agrandan la tarjeta de forma inconsistente. */}
+            <Text numberOfLines={1} style={[styles.activityTitle, { color: colors.textPrimary }]}>{title}</Text>
+            <Text numberOfLines={2} style={[styles.activityDesc, { color: colors.textSecondary }]}>{description}</Text>
           </View>
-        )}
 
-        {gradient ? (
-          <LinearGradient
-            colors={gradient}
-            style={styles.activityIconWrap}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Ionicons name={icon as any} size={24} color="#FFF" />
-          </LinearGradient>
-        ) : (
-          <View style={[styles.activityIconWrap, { backgroundColor: color + '18' }]}>
-            <Ionicons name={icon as any} size={24} color={color} />
+          <View style={styles.activityRight}>
+            <Text numberOfLines={1} style={[styles.activityDuration, { color: colors.textLight }]}>{duration}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
           </View>
-        )}
-
-        <View style={styles.activityContent}>
-          <Text style={[styles.activityTitle, { color: colors.textPrimary }]}>{title}</Text>
-          <Text style={[styles.activityDesc, { color: colors.textSecondary }]}>{description}</Text>
-        </View>
-
-        <View style={styles.activityRight}>
-          <Text style={[styles.activityDuration, { color: colors.textLight }]}>{duration}</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
-        </View>
-      </GlassCard>
-    </Animated.View>
+        </GlassCard>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textLight,
   },
-  activityRight: { alignItems: 'flex-end', gap: 4 },
+  activityRight: { alignItems: 'flex-end', gap: 4, maxWidth: 90 },
   activityDuration: {
     fontSize: 11,
     color: Colors.textLight,

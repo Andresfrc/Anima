@@ -1,4 +1,4 @@
-# Aníma 🌌
+# Ánima 🌌
 
 Aplicación de acompañamiento emocional diseñada para brindar calma y bienestar.
 
@@ -64,4 +64,4 @@ npx expo start
 - **Estilos:** StyleSheet + Expo Linear Gradient
 
 ---
-*Desarrollado con ❤️ para Aníma.*
+*Desarrollado con ❤️ para Ánima.*

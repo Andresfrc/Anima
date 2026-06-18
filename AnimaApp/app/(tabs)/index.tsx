@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Modal, Image } from 'rea
 import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useNavigation } from 'expo-router';
-import { Colors, DAILY_AFFIRMATIONS } from '../../constants/theme';
+import { Colors, DAILY_AFFIRMATIONS, MoodConfig } from '../../constants/theme';
 import {
   GlassCard, MoodButton, JewelButton,
   Mascot, SectionHeader, FeatureButton, AmbientButton, WeeklyProgressRing, MicroChallengeCard, ConnectionRadarCard,
@@ -60,9 +60,42 @@ export default function HomeScreen() {
   const recentActivities = useStore((s) => s.recentActivities);
   const weeklyMoodData = useStore((s) => s.weeklyMoodData);
   const currentPlan = useStore((s) => s.currentPlan);
+  const moodHistory = useStore((s) => s.moodHistory);
   const profileAvatar = useStore((s) => s.profileAvatar);
   const avatarSource = getAvatarSource(profileAvatar);
   const activeRoute = EMOTIONAL_ROUTES.find(r => r.id === currentPlan);
+
+  const alreadyLoggedMoodToday = useMemo(() => {
+    const todayStr = getLocalToday();
+    return moodHistory.some((entry) => {
+      if (!entry.date) return false;
+      try {
+        const d = new Date(entry.date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}` === todayStr;
+      } catch {
+        return false;
+      }
+    });
+  }, [moodHistory]);
+
+  const todayMoodEntry = useMemo(() => {
+    const todayStr = getLocalToday();
+    return moodHistory.find((entry) => {
+      if (!entry.date) return false;
+      try {
+        const d = new Date(entry.date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}` === todayStr;
+      } catch {
+        return false;
+      }
+    });
+  }, [moodHistory]);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showXPGain, setShowXPGain] = useState(false);
@@ -243,7 +276,7 @@ export default function HomeScreen() {
 
   // ── Registrar mood ────────────────────────────────────────────────────────
   const handleRegisterMood = useCallback(async () => {
-    if (!currentMood) return;
+    if (!currentMood || alreadyLoggedMoodToday) return;
     await saveMoodEntry();
     setShowXPGain(true);
     setTimeout(() => setShowXPGain(false), 1500);
@@ -254,7 +287,7 @@ export default function HomeScreen() {
     } catch (err) {
       console.log('Error guardando mood:', err);
     }
-  }, [currentMood, saveMoodEntry]);
+  }, [currentMood, saveMoodEntry, alreadyLoggedMoodToday]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -338,7 +371,6 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInUp.duration(400).delay(450)}>
           <SectionHeader title="Rompiendo el Bucle" subtitle="Tu micro-reto de hoy" />
           <MicroChallengeCard
-            key={`micro-${microCompleted.length}`}
             completedData={microCompleted}
             onComplete={(challengeId) => { void saveMicroChallenge(challengeId); }}
           />
@@ -348,7 +380,6 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInUp.duration(400).delay(480)}>
           <SectionHeader title="Radar de Conexión" subtitle="Citas contigo mismo" />
           <ConnectionRadarCard
-            key={`energy-${energyCompleted.length}`}
             completedData={energyCompleted}
             onComplete={(task) => { void saveEnergyTask(task); }}
           />
@@ -356,21 +387,45 @@ export default function HomeScreen() {
 
         {/* Mood Selector */}
         <Animated.View entering={FadeInUp.duration(400).delay(500)}>
-          <SectionHeader title="¿Cómo te sientes?" subtitle="Selecciona tu estado de ánimo" />
-          <GlassCard style={styles.moodCard}>
-            <View style={styles.moodRow}>
-              {moods.map((m) => (<MoodButton key={m} mood={m} selected={currentMood === m} onPress={() => setMood(m)} />))}
-            </View>
-            {showXPGain ? (
-              <Animated.View entering={FadeIn.duration(300)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(252, 211, 77, 0.15)', paddingVertical: 14, borderRadius: 20, marginTop: 16 }}>
-                <Ionicons name="sparkles" size={20} color="#FCD34D" />
-                <Text style={{ color: '#FCD34D', fontSize: 18, fontFamily: 'Poppins_700Bold' }}>+10 XP</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Poppins_500Medium' }}>¡Registrado!</Text>
-              </Animated.View>
-            ) : (
-              <JewelButton title="Registrar estado de ánimo" onPress={handleRegisterMood} disabled={!currentMood} style={{ marginTop: 16 }} />
-            )}
-          </GlassCard>
+          <SectionHeader title="¿Cómo te sientes?" subtitle={alreadyLoggedMoodToday ? "Tu bienestar de hoy está al día" : "Selecciona tu estado de ánimo"} />
+          {alreadyLoggedMoodToday && todayMoodEntry ? (
+            <GlassCard style={styles.moodCard}>
+              <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                <View style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: (MoodConfig[todayMoodEntry.mood]?.color || colors.primary) + '15',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 12
+                }}>
+                  <Text style={{ fontSize: 28 }}>{MoodConfig[todayMoodEntry.mood]?.emoji || '✨'}</Text>
+                </View>
+                <Text style={[styles.moodLoggedTitle, { color: colors.textPrimary }]}>
+                  Hoy registraste: {MoodConfig[todayMoodEntry.mood]?.label}
+                </Text>
+                <Text style={[styles.moodLoggedSub, { color: colors.textLight }]}>
+                  ¡Gracias por compartir tu sentir hoy! Vuelve mañana para seguir cuidando de ti y mantener tu racha. 🌱
+                </Text>
+              </View>
+            </GlassCard>
+          ) : (
+            <GlassCard style={styles.moodCard}>
+              <View style={styles.moodRow}>
+                {moods.map((m) => (<MoodButton key={m} mood={m} selected={currentMood === m} onPress={() => setMood(m)} />))}
+              </View>
+              {showXPGain ? (
+                <Animated.View entering={FadeIn.duration(300)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(252, 211, 77, 0.15)', paddingVertical: 14, borderRadius: 20, marginTop: 16 }}>
+                  <Ionicons name="sparkles" size={20} color="#FCD34D" />
+                  <Text style={{ color: '#FCD34D', fontSize: 18, fontFamily: 'Poppins_700Bold' }}>+10 XP</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 14, fontFamily: 'Poppins_500Medium' }}>¡Registrado!</Text>
+                </Animated.View>
+              ) : (
+                <JewelButton title="Registrar estado de ánimo" onPress={handleRegisterMood} disabled={!currentMood} style={{ marginTop: 16 }} />
+              )}
+            </GlassCard>
+          )}
         </Animated.View>
 
         {/* Recent Activities */}
@@ -481,6 +536,8 @@ const styles = StyleSheet.create({
   affirmationText: { flex: 1, fontSize: 13, color: Colors.textSecondary, fontFamily: 'Poppins_400Regular', fontStyle: 'italic', lineHeight: 20 },
   moodCard: { marginBottom: 24 },
   moodRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  moodLoggedTitle: { fontSize: 16, fontWeight: '700', fontFamily: 'Poppins_700Bold', textAlign: 'center', marginBottom: 6 },
+  moodLoggedSub: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', lineHeight: 18, paddingHorizontal: 12 },
   recentCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   recentIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   recentTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, fontFamily: 'Poppins_600SemiBold' },

@@ -200,7 +200,7 @@ const planToUse = fetchedPlan || currentPlan;
           {/* Title */}
           <AnimatedEntrance delay={100} from="top">
             <View style={styles.titleSection}>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>Bienvenido a Aníma</Text>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>Bienvenido a Ánima</Text>
               <Text style={[styles.subtitle, { color: colors.textLight }]}>Tu compañero emocional</Text>
             </View>
           </AnimatedEntrance>
@@ -251,7 +251,7 @@ const planToUse = fetchedPlan || currentPlan;
                   </Pressable>
                 </View>
 
-                <Pressable style={styles.forgotLink}>
+                <Pressable style={styles.forgotLink} onPress={() => router.push('/(auth)/forgot-password')}>
                   <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
                 </Pressable>
 

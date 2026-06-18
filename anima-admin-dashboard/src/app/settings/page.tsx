@@ -80,7 +80,7 @@ export default function SettingsPage() {
             <Settings className="w-8 h-8 text-indigo-400" />
             Configuración Global
           </h2>
-          <p className="text-zinc-400 mt-1">Parámetros del sistema, seguridad y notificaciones Push (Aníma App).</p>
+          <p className="text-zinc-400 mt-1">Parámetros del sistema, seguridad y notificaciones Push (Ánima App).</p>
         </div>
         <Button
           onClick={handleSave}
@@ -212,7 +212,7 @@ export default function SettingsPage() {
             {activeTab === "notifications" && hasSettings && (
               <Card className="bg-zinc-950/60 border-white/10 backdrop-blur-md shadow-xl">
                 <CardHeader>
-                  <CardTitle className="text-xl text-white">Notificaciones Push (Aníma App)</CardTitle>
+                  <CardTitle className="text-xl text-white">Notificaciones Push (Ánima App)</CardTitle>
                   <CardDescription className="text-zinc-400">
                     Controla cómo la app se comunica directamente con los usuarios.
                   </CardDescription>

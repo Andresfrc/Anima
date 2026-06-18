@@ -19,6 +19,7 @@ import { RootBackground } from '../components/RootBackground';
 
 function AppLayout() {
   const [showSplash, setShowSplash] = useState(true);
+  const hasHydrated = useStore((s) => s._hasHydrated);
   const isAuthenticated = useStore((s) => s.isAuthenticated);
   const currentPlan = useStore((s) => s.currentPlan);
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
@@ -38,16 +39,20 @@ function AppLayout() {
   }, [fontsLoaded]);
 
   useEffect(() => {
-    if (!showSplash) {
-      if (!isAuthenticated) {
-        router.replace('/(auth)/login');
-      } else if (!currentPlan) {
-        router.replace('/(onboarding)/triage');
-      } else {
-        router.replace('/(tabs)');
-      }
+    // Solo redirigir cuando (1) el splash terminó —garantiza que el Stack ya se
+    // montó en el commit de este cambio, así router.replace no truena con
+    // "navigate before mounting"— y (2) el store hidrató desde AsyncStorage —si
+    // no, isAuthenticated aún es false y se ve un flash del login antes de entrar.
+    if (showSplash || !hasHydrated) return;
+
+    if (!isAuthenticated) {
+      router.replace('/(auth)/login');
+    } else if (!currentPlan) {
+      router.replace('/(onboarding)/triage');
+    } else {
+      router.replace('/(tabs)');
     }
-  }, [showSplash, isAuthenticated, currentPlan]);
+  }, [showSplash, hasHydrated, isAuthenticated, currentPlan]);
 
   // Initialize notifications
   useEffect(() => {
@@ -77,7 +82,11 @@ function AppLayout() {
     return null;
   }
 
-  if (showSplash) {
+  // FIX: mientras el splash esté activo O el store no haya hidratado, mostramos
+  // el splash a pantalla completa y NO montamos el Stack. Así:
+  //  - el flash del login desaparece (no se decide la ruta con datos a medias)
+  //  - router.replace nunca corre antes de que exista el navegador
+  if (showSplash || !hasHydrated) {
     return (
       <View style={StyleSheet.absoluteFill}>
         <StatusBar style="dark" />

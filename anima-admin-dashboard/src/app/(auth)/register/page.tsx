@@ -104,7 +104,7 @@ export default function RegisterPage() {
                 Solicitud de Acceso Clínico
               </CardTitle>
               <CardDescription className="text-zinc-400">
-                Únete al equipo administrativo de Aníma. Tu cuenta será revisada y aprobada por un Super Admin.
+                Únete al equipo administrativo de Ánima. Tu cuenta será revisada y aprobada por un Super Admin.
               </CardDescription>
             </div>
           </CardHeader>

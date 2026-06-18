@@ -262,7 +262,7 @@ export default function CMSPage() {
             <DialogHeader>
               <DialogTitle>Nueva Actividad</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Añade una nueva actividad al catálogo de Aníma. Aparecerá en la app móvil.
+                Añade una nueva actividad al catálogo de Ánima. Aparecerá en la app móvil.
               </DialogDescription>
             </DialogHeader>
             {formFields}

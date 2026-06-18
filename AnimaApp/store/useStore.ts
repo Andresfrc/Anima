@@ -62,6 +62,10 @@ interface AppState {
   showSplash: boolean;
   notificationsEnabled: boolean;
   
+  // Hydration — true cuando el store terminó de leerse desde AsyncStorage
+  _hasHydrated: boolean;
+  setHasHydrated: (val: boolean) => void;
+
   // Debug
   mockLateNight: boolean;
   setMockLateNight: (val: boolean) => void;
@@ -128,6 +132,10 @@ interface AppState {
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // Hydration
+      _hasHydrated: false,
+      setHasHydrated: (val: boolean) => set({ _hasHydrated: val }),
+
       // Debug
       mockLateNight: false,
       setMockLateNight: (val: boolean) => set({ mockLateNight: val }),
@@ -297,20 +305,24 @@ export const useStore = create<AppState>()(
           timestamp: new Date(),
         };
         set({ messages: [...messages, userMsg], isTyping: true });
-        
-        // ChatEngine ahora es un servicio externo — fácil de reemplazar por API real
-        setTimeout(() => {
-          const botMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            text: getBotResponse(text),
-            sender: 'bot',
-            timestamp: new Date(),
-          };
-          set((state) => ({
-            messages: [...state.messages, botMsg],
-            isTyping: false,
-          }));
-        }, 1500 + Math.random() * 1000);
+
+        // ChatEngine es un servicio externo asíncrono (API real).
+        // FIX: getBotResponse devuelve Promise<string>; antes se asignaba la Promise
+        // directamente a `text`, por lo que el chat mostraba "[object Promise]".
+        getBotResponse(text)
+          .then((reply) => {
+            const botMsg: ChatMessage = {
+              id: (Date.now() + 1).toString(),
+              text: reply,
+              sender: 'bot',
+              timestamp: new Date(),
+            };
+            set((state) => ({
+              messages: [...state.messages, botMsg],
+              isTyping: false,
+            }));
+          })
+          .catch(() => set({ isTyping: false }));
       },
       addJournalEntry: (entry) => {
         const oldXP = get().userXP;
@@ -395,6 +407,10 @@ export const useStore = create<AppState>()(
     {
       name: 'anima-app-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        // Se ejecuta cuando termina de leer desde AsyncStorage
+        state?.setHasHydrated(true);
+      },
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         userName: state.userName,

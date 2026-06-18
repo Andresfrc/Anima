@@ -8,8 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Aníma | Admin Dashboard",
-  description: "Panel de administración premium para la app móvil Aníma",
+  title: "Ánima | Admin Dashboard",
+  description: "Panel de administración premium para la app móvil Ánima",
 };
 
 export default function RootLayout({

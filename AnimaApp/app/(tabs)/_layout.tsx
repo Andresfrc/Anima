@@ -275,7 +275,7 @@ export default function TabsLayout() {
               En Mantenimiento 🔧
             </Text>
             <Text style={[styles.modalDesc, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }]}>
-              Aníma está temporalmente fuera de servicio para mejoras. Vuelve en unos minutos.
+              Ánima está temporalmente fuera de servicio para mejoras. Vuelve en unos minutos.
             </Text>
             <Pressable
               onPress={async () => {
@@ -301,7 +301,7 @@ export default function TabsLayout() {
               Actualización Requerida 🚀
             </Text>
             <Text style={[styles.modalDesc, { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }]}>
-              Esta versión de Aníma ya no está soportada. Por favor actualiza la app para continuar.
+              Esta versión de Ánima ya no está soportada. Por favor actualiza la app para continuar.
             </Text>
             <Text style={{ color: '#6366F1', fontSize: 12, marginBottom: 16 }}>
               Versión actual: {APP_VERSION}

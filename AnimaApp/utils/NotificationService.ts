@@ -130,7 +130,7 @@ export class NotificationService {
       // 2. Programamos el nuevo para dentro de 48 horas (172800 segundos)
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: "Aníma te extraña 🍃",
+          title: "Ánima te extraña 🍃",
           body: "Han pasado un par de días desde tu última visita. ¿Hacemos una pausa activa breve?",
           color: '#8BB8E8', // Soft Blue
           sound: true,
@@ -155,7 +155,7 @@ export class NotificationService {
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: "¡Hola desde Aníma! 🌙",
+          title: "¡Hola desde Ánima! 🌙",
           body: "Tus notificaciones locales están funcionando a la perfección.",
           color: '#C8B6FF', // Dreamy Purple
           sound: true,

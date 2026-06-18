@@ -209,7 +209,7 @@ export default function ProfilePage() {
                     value={organization}
                     onChange={(e) => setOrganization(e.target.value)}
                     disabled={!isEditing}
-                    placeholder="Aníma Core Team"
+                    placeholder="Ánima Core Team"
                     className="pl-10 bg-black/40 border-white/10 text-white disabled:opacity-50 disabled:text-zinc-500"
                   />
                 </div>

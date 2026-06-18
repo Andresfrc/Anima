@@ -208,7 +208,7 @@ export default function UsersPage() {
             Community & Access
           </h2>
           <p className="text-zinc-400 mt-1">
-            Gestiona los roles, cuentas de prueba, e infracciones de la comunidad Aníma.
+            Gestiona los roles, cuentas de prueba, e infracciones de la comunidad Ánima.
             <br />
             {maskIdentity && (
               <span className="text-xs text-emerald-500/80 flex items-center gap-1 mt-1">

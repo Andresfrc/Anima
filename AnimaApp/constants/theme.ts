@@ -1,4 +1,4 @@
-// Aníma App — Design System Tokens
+// Ánima App — Design System Tokens
 // Calming, premium palette based on mockups and RNF-07
 
 export const ColorsLight = {

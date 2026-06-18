@@ -1,6 +1,6 @@
-# Especificación de Requerimientos de Software — Aníma
+# Especificación de Requerimientos de Software — Ánima
 
-> **Proyecto:** Aníma — Aplicación de Acompañamiento Emocional  
+> **Proyecto:** Ánima — Aplicación de Acompañamiento Emocional  
 > **Versión:** 2.0  
 > **Fecha:** Febrero 2026  
 > **Plataformas objetivo:** Android, iOS
@@ -10,10 +10,10 @@
 ## 1. Introducción
 
 ### 1.1 Propósito
-Este documento define los requerimientos funcionales y no funcionales del sistema Aníma, una aplicación móvil de acompañamiento emocional orientada a jóvenes universitarios (18–30 años). Sirve como referencia para desarrollo, pruebas y validación.
+Este documento define los requerimientos funcionales y no funcionales del sistema Ánima, una aplicación móvil de acompañamiento emocional orientada a jóvenes universitarios (18–30 años). Sirve como referencia para desarrollo, pruebas y validación.
 
 ### 1.2 Alcance
-Aníma ofrece herramientas de autorregulación emocional, psicoeducación y acompañamiento basadas en evidencia clínica. La aplicación **no reemplaza** la atención profesional de salud mental.
+Ánima ofrece herramientas de autorregulación emocional, psicoeducación y acompañamiento basadas en evidencia clínica. La aplicación **no reemplaza** la atención profesional de salud mental.
 
 ### 1.3 Definiciones
 | Término | Definición |
