@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform, Image, Keyboard,
 } from 'react-native';
 import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,25 @@ export default function ChatScreen() {
   const userAvatarSource = getAvatarSource(profileAvatar);
   const [input, setInput] = useState('');
   const scrollRef = useRef<ScrollView>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardVisible(true);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // 🔥 PING para mantener el servidor despierto
   useEffect(() => {
@@ -179,7 +198,8 @@ export default function ChatScreen() {
           styles.inputBar, 
           { 
             backgroundColor: colors.bgCard,
-            borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' 
+            borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            marginBottom: isKeyboardVisible ? 12 : (Platform.OS === 'ios' ? 120 : 100),
           }
         ]}>
           <TextInput
@@ -296,7 +316,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16, 
     paddingVertical: 12,
-    marginBottom: Platform.OS === 'ios' ? 120 : 100,
     backgroundColor: 'rgba(255,255,255,0.85)',
     borderTopWidth: 1, 
     borderTopColor: 'rgba(0,0,0,0.04)',

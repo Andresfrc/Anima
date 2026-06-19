@@ -26,9 +26,19 @@ export default function XPToast() {
   useEffect(() => {
     // Use zustand's raw subscribe — fires on EVERY state mutation
     let prevXP = useStore.getState().userXP;
+    let hydrated = useStore.getState()._hasHydrated;
 
     const unsub = useStore.subscribe((state) => {
       const currentXP = state.userXP;
+      const currentHydrated = state._hasHydrated;
+
+      if (!hydrated) {
+        // If not hydrated yet, just keep track of the initial values without alerting
+        prevXP = currentXP;
+        hydrated = currentHydrated;
+        return;
+      }
+
       if (currentXP > prevXP) {
         const delta = currentXP - prevXP;
         prevXP = currentXP;

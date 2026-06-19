@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { useStore } from '../../store/useStore';
 
 const { width } = Dimensions.get('window');
 
@@ -71,6 +72,7 @@ export default function CapsulaDePapelScreen() {
     setTimeout(() => {
       resetActivity();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      useStore.getState().addCompletedActivity('Cápsula de Papel', 'capsula');
     }, 3000);
   };
 

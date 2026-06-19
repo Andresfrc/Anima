@@ -12,6 +12,7 @@ import { GlassCard } from '../../components/ui';
 
 // Using the same ui exports as diario-ciego
 import { JewelButton as UIJewelButton } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 export default function AstilleroScreen() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function AstilleroScreen() {
 
     if (newProgress >= 0.99 && !showCelebration) {
       setTimeout(() => {
+        useStore.getState().addCompletedActivity('Astillero de Victorias', 'astillero');
         setShowCelebration(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }, 500);
@@ -79,7 +81,7 @@ export default function AstilleroScreen() {
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Astillero de Victorias</Text>
-          <View style={{ width: 44 }} />
+          <View style={{ width: 28 }} />
         </View>
 
         {!showCelebration ? (

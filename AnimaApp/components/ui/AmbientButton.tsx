@@ -1,43 +1,66 @@
 /**
- * AmbientButton — Botón para ciclar sonidos ambientales (lluvia, océano, fuego, aves).
+ * AmbientButton — Botón para ciclar sonidos ambientales (lluvia, océano, fuego, aves) y sonidos de recompensa equipados.
  */
 import React, { useState } from 'react';
-import { Text, Pressable, View, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { SoundService } from '../../utils/SoundService';
 import { useTheme } from '../../hooks/useTheme';
+import { useStore } from '../../store/useStore';
 
-type AmbientMode = 'off' | 'rain' | 'ocean' | 'fire' | 'birds';
+const REWARD_SOUNDS_MAP: Record<string, string> = {
+  ren_r2: 'viento_montana',
+  aut_r2: 'caja_musica',
+  bal_r2: 'cuencos_tibetanos',
+  des_r2: 'ruido_cosmico',
+  sol_r2: 'piano_distante',
+};
 
 export function AmbientButton() {
   const { colors } = useTheme();
-  const [mode, setMode] = useState<AmbientMode>('off');
+  const activeSound = useStore((s) => s.activeSound);
+  const [mode, setMode] = useState<string>('off');
   
+  const activeSoundKey = activeSound ? REWARD_SOUNDS_MAP[activeSound] : null;
+
+  const modes = React.useMemo(() => {
+    const base = ['off', 'rain', 'ocean', 'fire', 'birds'];
+    if (activeSoundKey) {
+      return [...base, activeSoundKey];
+    }
+    return base;
+  }, [activeSoundKey]);
+
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     SoundService.play('click');
 
-    const nextMap: Record<AmbientMode, AmbientMode> = {
-      off: 'rain', rain: 'ocean', ocean: 'fire', fire: 'birds', birds: 'off',
-    };
-    const next = nextMap[mode];
+    const currentIndex = modes.indexOf(mode);
+    const nextIndex = (currentIndex + 1) % modes.length;
+    const next = modes[nextIndex];
     setMode(next);
 
     if (next === 'off') SoundService.stopAmbient();
     else SoundService.playAmbient(next);
   };
 
-  const config: Record<AmbientMode, { icon: string; color: string; label: string }> = {
+  const config: Record<string, { icon: string; color: string; label: string }> = {
     off: { icon: 'musical-notes-outline', color: colors.textLight, label: 'Sonidos' },
     rain: { icon: 'rainy', color: '#60A5FA', label: 'Lluvia' },
     ocean: { icon: 'water', color: '#3B82F6', label: 'Océano' },
     fire: { icon: 'flame', color: '#F97316', label: 'Fuego' },
     birds: { icon: 'leaf', color: '#10B981', label: 'Aves' },
+    // Recompensas
+    viento_montana: { icon: 'cloud-outline', color: '#4FD1C5', label: 'Viento' },
+    caja_musica: { icon: 'star-outline', color: '#F472B6', label: 'Caja Mús.' },
+    cuencos_tibetanos: { icon: 'notifications-outline', color: '#A78BFA', label: 'Cuencos' },
+    ruido_cosmico: { icon: 'planet-outline', color: '#FBBF24', label: 'Cósmico' },
+    piano_distante: { icon: 'musical-notes-outline', color: '#EC4899', label: 'Piano' },
   };
 
-  const current = config[mode];
+  const current = config[mode] || config.off;
 
   return (
     <Pressable onPress={handlePress} style={styles.ambientBtn}>

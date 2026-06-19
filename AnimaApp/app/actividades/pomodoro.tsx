@@ -13,6 +13,15 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { useStore } from '../../store/useStore';
+
+const REWARD_SOUNDS_MAP: Record<string, any> = {
+  ren_r2: require('../../assets/sounds/viento_montana.m4a'),
+  aut_r2: require('../../assets/sounds/caja_musica.m4a'),
+  bal_r2: require('../../assets/sounds/cuencos_tibetanos.mp3'),
+  des_r2: require('../../assets/sounds/ruido_cosmico.mp3'),
+  sol_r2: require('../../assets/sounds/piano_distante.mp3'),
+};
 
 const { width } = Dimensions.get('window');
 const CIRCLE_LENGTH = 1000; // SVG circumference
@@ -50,6 +59,9 @@ const safeAction = async (action: 'play' | 'pause' | 'stop', sound: Audio.Sound 
 export default function PomodoroScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+
+  const activeSound = useStore((s) => s.activeSound);
+  const [useRewardSound, setUseRewardSound] = useState(false);
 
   const [focusDuration, setFocusDuration] = useState(25 * 60); // default 25 min
   const [breakDuration, setBreakDuration] = useState(5 * 60);  // default 5 min
@@ -126,6 +138,37 @@ export default function PomodoroScreen() {
     };
   }, [isRunning, ambientSound]);
 
+  const toggleSoundType = async () => {
+    Haptics.selectionAsync();
+    const nextVal = !useRewardSound;
+    setUseRewardSound(nextVal);
+    
+    if (ambientSound) {
+      try {
+        await safeAction('stop', ambientSound);
+        await ambientSound.unloadAsync();
+      } catch (e) {}
+      setAmbientSound(null);
+      
+      if (isRunning && !isMuted) {
+        try {
+          const track = nextVal && activeSound && REWARD_SOUNDS_MAP[activeSound]
+            ? REWARD_SOUNDS_MAP[activeSound]
+            : (mode === 'focus' ? require('../../assets/sounds/Lofi.mp3') : require('../../assets/sounds/Lofi2.mp3'));
+            
+          const { sound: newSound } = await Audio.Sound.createAsync(track, { 
+            shouldPlay: true, 
+            isLooping: true, 
+            volume: 0.8 
+          });
+          setAmbientSound(newSound);
+        } catch (e) {
+          console.log('Error toggling ambient sound source', e);
+        }
+      }
+    }
+  };
+
   const toggleTimer = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isRunning) {
@@ -137,10 +180,15 @@ export default function PomodoroScreen() {
       setIsRunning(true);
       if (!ambientSound) {
           try {
-            // Load track based on mode
-            const track = mode === 'focus' 
-              ? require('../../assets/sounds/Lofi.mp3')
-              : require('../../assets/sounds/Lofi2.mp3');
+            // Load track based on mode and equipped reward sound selection
+            let track;
+            if (useRewardSound && activeSound && REWARD_SOUNDS_MAP[activeSound]) {
+              track = REWARD_SOUNDS_MAP[activeSound];
+            } else {
+              track = mode === 'focus' 
+                ? require('../../assets/sounds/Lofi.mp3')
+                : require('../../assets/sounds/Lofi2.mp3');
+            }
               
             const { sound: newSound } = await Audio.Sound.createAsync(track, { 
               shouldPlay: !isMuted, 
@@ -163,6 +211,11 @@ export default function PomodoroScreen() {
     setIsRunning(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await safeAction('stop', ambientSound);
+    
+    // Reward XP and log activity completion if it was a focus session
+    if (mode === 'focus') {
+      useStore.getState().addCompletedActivity('Pomodoro de Paz', 'pomodoro');
+    }
     
     // Show celebration screen
     setShowCompletion(true);
@@ -415,6 +468,21 @@ export default function PomodoroScreen() {
           </Pressable>
         </Animated.View>
 
+        {activeSound && (
+          <Pressable 
+            onPress={toggleSoundType}
+            style={[
+              styles.soundSelectorBtn, 
+              { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
+            ]}
+          >
+            <Ionicons name={useRewardSound ? "sparkles" : "musical-notes-outline"} size={14} color={primaryColor} />
+            <Text style={[styles.soundSelectorText, { color: colors.textSecondary }]}>
+              Sonido de fondo: {useRewardSound ? 'Recompensa' : 'Lofi Clásico'}
+            </Text>
+          </Pressable>
+        )}
+
       </View>
 
       {/* Completion Overlay */}
@@ -544,5 +612,19 @@ const styles = StyleSheet.create({
   stepperHint: {
     fontSize: 11, fontFamily: 'Poppins_400Regular',
     marginTop: 2, opacity: 0.6,
+  },
+  soundSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 24,
+  },
+  soundSelectorText: {
+    fontSize: 12,
+    fontFamily: 'Poppins_600SemiBold',
   },
 });

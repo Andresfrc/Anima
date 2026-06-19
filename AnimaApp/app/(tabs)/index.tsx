@@ -14,6 +14,7 @@ import { EMOTIONAL_ROUTES } from '../../constants/clinicalContent';
 import { getAvatarSource } from '../../constants/avatars';
 import { supabase } from '../../lib/supabase';
 import { syncUserDataFromSupabase, saveMoodToSupabase } from '../../utils/supabaseSync';
+import { ROUTE_PROGRESSIONS } from '../../constants/progressionSystem';
 
 const NOTIFICATIONS_MOCK = [
   { id: '1', title: '¡Bienvenido a Anima!', desc: 'Nos alegra tenerte aquí. Recuerda revisar tu plan diario.', time: 'Hace 2h' },
@@ -58,7 +59,18 @@ export default function HomeScreen() {
   const moodHistory = useStore((s) => s.moodHistory);
   const profileAvatar = useStore((s) => s.profileAvatar);
   const avatarSource = getAvatarSource(profileAvatar);
+  const activeTitle = useStore((s) => s.activeTitle);
   const activeRoute = EMOTIONAL_ROUTES.find(r => r.id === currentPlan);
+
+  const activeTitleName = useMemo(() => {
+    if (!activeTitle) return null;
+    for (const route of Object.values(ROUTE_PROGRESSIONS)) {
+      for (const lvl of route.levels) {
+        if (lvl.reward?.id === activeTitle) return lvl.reward.name;
+      }
+    }
+    return null;
+  }, [activeTitle]);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showXPGain, setShowXPGain] = useState(false);
@@ -299,6 +311,14 @@ export default function HomeScreen() {
             <Text style={[styles.greeting, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
               {greeting}, {userName || 'amigo/a'} 👋
             </Text>
+            {activeTitleName && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, marginBottom: 2 }}>
+                <Ionicons name="ribbon" size={12} color={colors.primary} />
+                <Text style={{ fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: colors.primary }}>
+                  {activeTitleName.replace('Título: ', '')}
+                </Text>
+              </View>
+            )}
             <Text style={[styles.subtitle, { color: colors.textLight }]}>{welcomeSubtitle}</Text>
           </View>
           <View style={{ alignItems: 'center', gap: 4 }}>

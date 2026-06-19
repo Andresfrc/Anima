@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { JewelButton } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 export default function AbrazoScreen() {
   const router = useRouter();
@@ -120,7 +121,30 @@ export default function AbrazoScreen() {
           <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Abrazo de Mariposa</Text>
-        <View style={{ width: 44 }} />
+        <Pressable 
+          onPress={() => {
+            if (sessionTime >= 30) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              useStore.getState().addCompletedActivity('Abrazo de Mariposa', 'actividad');
+            } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+            router.back();
+          }}
+          style={({ pressed }) => [
+            {
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            pressed && { opacity: 0.7 }
+          ]}
+        >
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.primary }}>Finalizar</Text>
+        </Pressable>
       </View>
 
       <View style={styles.content}>

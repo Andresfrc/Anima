@@ -11,6 +11,7 @@ import { VisualGrounding } from './components/VisualGrounding';
 import { HapticGrounding } from './components/HapticGrounding';
 import { AuralGrounding } from './components/AuralGrounding';
 import { CognitiveGrounding } from './components/CognitiveGrounding';
+import { useStore } from '../../store/useStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -39,6 +40,7 @@ export default function GroundingScreen() {
   useEffect(() => {
     if (currentStep === 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      useStore.getState().addCompletedActivity('Conexión 5 Sentidos', 'grounding');
       const timer = setTimeout(() => {
         router.back();
       }, 3500);

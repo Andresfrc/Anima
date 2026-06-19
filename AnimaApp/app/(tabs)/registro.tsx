@@ -140,6 +140,21 @@ export default function RegistroScreen() {
   const insight = useMemo(() => getEmotionalInsight(moodHistory, recentActivities, currentPlan), [moodHistory, recentActivities, currentPlan]);
   const isEmpty = moodHistory.length === 0 && journalEntries.length === 0;
 
+  const alreadyLoggedMoodToday = useMemo(() => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return moodHistory.some((entry) => {
+      if (!entry.date) return false;
+      try {
+        const entryDate = new Date(entry.date);
+        const entryStr = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}-${String(entryDate.getDate()).padStart(2, '0')}`;
+        return entryStr === todayStr;
+      } catch {
+        return false;
+      }
+    });
+  }, [moodHistory]);
+
   const [showLogModal, setShowLogModal] = useState(false);
   const [savedXP, setSavedXP] = useState(false);
   const [registroTab, setRegistroTab] = useState<'registro' | 'progreso'>('registro');
@@ -590,20 +605,22 @@ export default function RegistroScreen() {
       </ScrollView>
 
       {/* ─── FAB ─── */}
-      <Animated.View entering={FadeInUp.duration(400).delay(500)} style={styles.fabContainer}>
-        <Pressable
-          style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            SoundService.play('click');
-            setShowLogModal(true);
-          }}
-        >
-          <LinearGradient colors={[Colors.primary, Colors.secondary]} style={styles.fabGradient}>
-            <Ionicons name="add" size={28} color="#FFF" />
-          </LinearGradient>
-        </Pressable>
-      </Animated.View>
+      {!alreadyLoggedMoodToday && (
+        <Animated.View entering={FadeInUp.duration(400).delay(500)} style={styles.fabContainer}>
+          <Pressable
+            style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              SoundService.play('click');
+              setShowLogModal(true);
+            }}
+          >
+            <LinearGradient colors={[Colors.primary, Colors.secondary]} style={styles.fabGradient}>
+              <Ionicons name="add" size={28} color="#FFF" />
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+      )}
 
       {/* ─── LOG MODAL ─── */}
       <Modal visible={showLogModal} transparent animationType="slide" onRequestClose={() => setShowLogModal(false)}>
@@ -737,7 +754,7 @@ const styles = StyleSheet.create({
   emptyStep: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16 },
   emptyStepIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   emptyStepText: { fontSize: 13, fontFamily: 'Poppins_500Medium', flex: 1 },
-  fabContainer: { position: 'absolute', bottom: 24, right: 24, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
+  fabContainer: { position: 'absolute', bottom: 110, right: 24, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
   fab: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden' },
   fabGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import SplashScreenComponent from '../components/SplashScreen';
 import { useStore } from '../store/useStore';
 import { NotificationService } from '../utils/NotificationService';
+import XPToast from '../components/ui/XPToast';
 
 // Silencia el falso error de Expo Go sobre notificaciones remotas
 LogBox.ignoreLogs(['expo-notifications: Android Push notifications', 'Failed to schedule the notification']);
@@ -115,6 +116,7 @@ function AppLayout() {
           options={{ animation: 'slide_from_right' }}
         />
       </Stack>
+      <XPToast />
     </GestureHandlerRootView>
   );
 }

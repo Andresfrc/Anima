@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withTiming,
   withSequence, Easing, interpolate, cancelAnimation,
 } from 'react-native-reanimated';
+import { useStore } from '../../store/useStore';
 
 // Mascot images (RF-19)
 const MASCOT_IMAGES: Record<string, ImageSourcePropType> = {
@@ -29,9 +30,23 @@ const MASCOT_IMAGES: Record<string, ImageSourcePropType> = {
   estudioso: require('../../assets/images/mascot/lumi-estudioso.png'),
   celebrando: require('../../assets/images/mascot/lumi-celebrando.png'),
   levelup: require('../../assets/images/mascot/lumi-up.png'),
+  // Reward Mascot Skins (Lumi Variants)
+  fenix: require('../../assets/images/mascot/lumi-fenix.png'),
+  mariposa: require('../../assets/images/mascot/lumi-mariposa.png'),
+  zen: require('../../assets/images/mascot/lumi-zen.png'),
+  cosmico: require('../../assets/images/mascot/lumi-cosmico.png'),
+  guardian: require('../../assets/images/mascot/lumi-guardian.png'),
 };
 
-export type MascotVariant = 'happy' | 'greeting' | 'empathetic' | 'breathing' | 'meditating' | 'resting' | 'radar' | 'celebrating' | 'diary' | 'fire' | 'star' | 'confused' | 'sleeping' | 'registro' | 'pensativo' | 'estudioso' | 'celebrando' | 'levelup';
+const VARIANT_MAP: Record<string, string> = {
+  ren_r4: 'fenix',
+  aut_r4: 'mariposa',
+  bal_r4: 'zen',
+  des_r4: 'cosmico',
+  sol_r4: 'guardian',
+};
+
+export type MascotVariant = 'happy' | 'greeting' | 'empathetic' | 'breathing' | 'meditating' | 'resting' | 'radar' | 'celebrating' | 'diary' | 'fire' | 'star' | 'confused' | 'sleeping' | 'registro' | 'pensativo' | 'estudioso' | 'celebrando' | 'levelup' | 'fenix' | 'mariposa' | 'zen' | 'cosmico' | 'guardian';
 
 interface MascotProps {
   size?: number;
@@ -43,6 +58,17 @@ const MascotComponent = ({ size = 120, style, variant = 'happy' }: MascotProps) 
   const floatY = useSharedValue(0);
   const glow = useSharedValue(0);
   const breathScale = useSharedValue(1);
+
+  // Overriding variant if a custom skin is equipped
+  const activeLumiVariant = useStore((s) => s.activeLumiVariant);
+  const resolvedVariant = React.useMemo(() => {
+    // Only override companion/general poses, keep functional ones like breathing/sleeping intact
+    const isCompanionPose = ['happy', 'greeting', 'celebrating', 'resting', 'pensativo', 'estudioso', 'celebrando', 'empathetic'].includes(variant);
+    if (activeLumiVariant && isCompanionPose && VARIANT_MAP[activeLumiVariant]) {
+      return VARIANT_MAP[activeLumiVariant] as MascotVariant;
+    }
+    return variant;
+  }, [variant, activeLumiVariant]);
 
   useEffect(() => {
     floatY.value = withRepeat(
@@ -58,7 +84,7 @@ const MascotComponent = ({ size = 120, style, variant = 'happy' }: MascotProps) 
       -1, true
     );
 
-    if (variant === 'breathing' || variant === 'meditating') {
+    if (resolvedVariant === 'breathing' || resolvedVariant === 'meditating') {
       breathScale.value = withRepeat(
         withTiming(1.04, { duration: 3500, easing: Easing.inOut(Easing.sin) }),
         -1, true
@@ -70,7 +96,7 @@ const MascotComponent = ({ size = 120, style, variant = 'happy' }: MascotProps) 
       cancelAnimation(glow);
       cancelAnimation(breathScale);
     };
-  }, [variant]);
+  }, [resolvedVariant]);
 
   const glowStyle = useAnimatedStyle(() => ({
     opacity: interpolate(glow.value, [0, 1], [0.3, 0.6]),
@@ -84,7 +110,7 @@ const MascotComponent = ({ size = 120, style, variant = 'happy' }: MascotProps) 
     ],
   }));
 
-  const imageSource = MASCOT_IMAGES[variant] || MASCOT_IMAGES.happy;
+  const imageSource = MASCOT_IMAGES[resolvedVariant] || MASCOT_IMAGES.happy;
 
   const scaleMap: Record<string, { image: number, glow: number }> = {
     happy: { image: 1, glow: 1.3 },
@@ -92,7 +118,7 @@ const MascotComponent = ({ size = 120, style, variant = 'happy' }: MascotProps) 
     star: { image: 1.6, glow: 0.95 },
   };
 
-  const currentScale = scaleMap[variant] || { image: 1.35, glow: 1.1 };
+  const currentScale = scaleMap[resolvedVariant] || { image: 1.35, glow: 1.1 };
 
   return (
     <Animated.View style={[styles.mascotContainer, { width: size, height: size }, combinedStyle, style]}>

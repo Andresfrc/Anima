@@ -9,6 +9,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { BlurView } from 'expo-blur';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { JewelButton } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 export default function DiarioCiegoScreen() {
   const router = useRouter();
@@ -51,6 +52,7 @@ export default function DiarioCiegoScreen() {
   const handleFinish = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Keyboard.dismiss();
+    useStore.getState().addCompletedActivity('Diario Ciego', 'diario-ciego');
     setIsFinished(true);
   };
 
@@ -76,7 +78,7 @@ export default function DiarioCiegoScreen() {
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Diario Ciego</Text>
-          <View style={{ width: 44 }} />
+          <View style={{ width: 28 }} />
         </View>
 
         {!isFinished ? (

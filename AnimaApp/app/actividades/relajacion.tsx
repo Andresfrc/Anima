@@ -12,6 +12,7 @@ import { Colors, Gradients } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { JewelButton } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 // Body parts data
 const BODY_STEPS = [
@@ -26,6 +27,12 @@ export default function RelajacionScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const [stepIndex, setStepIndex] = useState(-1); // -1: Intro, 0-4: Steps, 5: Outro
+
+  const handleFinishActivity = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    useStore.getState().addCompletedActivity('Relajación Progresiva', 'relajacion');
+    router.back();
+  };
   const [phase, setPhase] = useState<'idle' | 'read' | 'tense' | 'relax'>('idle');
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -179,7 +186,7 @@ export default function RelajacionScreen() {
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Has completado el escaneo. Intenta llevar esta sensación de calma al resto de tu día.
             </Text>
-            <JewelButton title="Finalizar" onPress={() => router.back()} style={{ width: '100%', marginTop: 20 }} />
+            <JewelButton title="Finalizar" onPress={handleFinishActivity} style={{ width: '100%', marginTop: 20 }} />
           </Animated.View>
         )}
       </View>

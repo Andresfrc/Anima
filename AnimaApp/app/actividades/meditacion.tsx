@@ -14,10 +14,12 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '../../constants/theme';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { SoundService } from '../../utils/SoundService';
 import { GlassCard, FloatingParticles } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,9 +32,32 @@ const AMBIENT_SOUNDS = [
 
 export default function MeditacionScreen() {
   const router = useRouter();
-  
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeSoundId, setActiveSoundId] = useState<string>('ocean');
+  const [meditationTime, setMeditationTime] = useState(0);
+
+  // Track meditation duration in seconds when active
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval>;
+    if (isPlaying) {
+      timer = setInterval(() => {
+        setMeditationTime((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isPlaying]);
+
+  const handleFinishActivity = () => {
+    if (meditationTime >= 30) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      useStore.getState().addCompletedActivity('Meditación Guiada', 'meditacion');
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.back();
+  };
   
   // Custom Hook definition for the Breathing scale animation
   const breatheScale = useSharedValue(1);
@@ -94,7 +119,22 @@ export default function MeditacionScreen() {
           <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.headerTitle}>Meditación Guiada</Text>
-        <View style={{ width: 40 }} />
+        <Pressable 
+          onPress={handleFinishActivity}
+          style={({ pressed }) => [
+            {
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+            pressed && { opacity: 0.7 }
+          ]}
+        >
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#818CF8' }}>Finalizar</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

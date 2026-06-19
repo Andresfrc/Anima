@@ -16,6 +16,7 @@ import { getBotResponse } from '../services/ChatEngine';
 import { MoodType } from '../constants/theme';
 import { DEFAULT_ACTIVITIES } from '../constants/activities';
 import { XP_EVENTS, getCurrentLevel, RouteLevel } from '../constants/progressionSystem';
+import { supabase } from '../lib/supabase';
 
 // Re-export MoodType desde la fuente única para compatibilidad con imports existentes
 export { MoodType } from '../constants/theme';
@@ -106,6 +107,9 @@ interface AppState {
   pendingLevelUp: RouteLevel | null;
   activeTitle: string | null;
   unlockedTitles: string[];
+  activeSound: string | null;
+  activeLumiVariant: string | null;
+  unlockedRewards: string[];
   
   // Actions
   login: (email: string, name: string) => void;
@@ -127,6 +131,8 @@ interface AppState {
   addXP: (amount: number) => void;
   clearLevelUp: () => void;
   setActiveTitle: (titleId: string | null) => void;
+  setActiveSound: (soundId: string | null) => void;
+  setActiveLumiVariant: (variantId: string | null) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -182,6 +188,9 @@ export const useStore = create<AppState>()(
       pendingLevelUp: null,
       activeTitle: null,
       unlockedTitles: [],
+      activeSound: null,
+      activeLumiVariant: null,
+      unlockedRewards: [],
       
       // Actions
       login: (email, name) => set({ isAuthenticated: true, userEmail: email, userName: name || 'Usuario' }),
@@ -196,6 +205,7 @@ export const useStore = create<AppState>()(
           journalEntries: [], recentActivities: [],
           userXP: 0, lastActiveDate: null, currentStreak: 0,
           pendingLevelUp: null, activeTitle: null, unlockedTitles: [],
+          activeSound: null, activeLumiVariant: null, unlockedRewards: [],
           microCompleted: [],
           energyCompleted: [],
         });
@@ -273,11 +283,16 @@ export const useStore = create<AppState>()(
         const newLevel = getCurrentLevel(plan, newXP + bonusXP);
         if (newLevel.level > oldLevel.level) {
           set({ pendingLevelUp: newLevel });
-          // Auto-unlock title rewards
-          if (newLevel.reward?.type === 'title') {
-            const titles = get().unlockedTitles;
-            if (!titles.includes(newLevel.reward.id)) {
-              set({ unlockedTitles: [...titles, newLevel.reward.id] });
+          if (newLevel.reward) {
+            const rewards = get().unlockedRewards || [];
+            if (!rewards.includes(newLevel.reward.id)) {
+              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
+            }
+            if (newLevel.reward.type === 'title') {
+              const titles = get().unlockedTitles || [];
+              if (!titles.includes(newLevel.reward.id)) {
+                set({ unlockedTitles: [...titles, newLevel.reward.id] });
+              }
             }
           }
         }
@@ -338,10 +353,16 @@ export const useStore = create<AppState>()(
         const newLevel = getCurrentLevel(plan, newXP);
         if (newLevel.level > oldLevel.level) {
           set({ pendingLevelUp: newLevel });
-          if (newLevel.reward?.type === 'title') {
-            const titles = get().unlockedTitles;
-            if (!titles.includes(newLevel.reward.id)) {
-              set({ unlockedTitles: [...titles, newLevel.reward.id] });
+          if (newLevel.reward) {
+            const rewards = get().unlockedRewards || [];
+            if (!rewards.includes(newLevel.reward.id)) {
+              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
+            }
+            if (newLevel.reward.type === 'title') {
+              const titles = get().unlockedTitles || [];
+              if (!titles.includes(newLevel.reward.id)) {
+                set({ unlockedTitles: [...titles, newLevel.reward.id] });
+              }
             }
           }
         }
@@ -373,16 +394,65 @@ export const useStore = create<AppState>()(
           userXP: newXP,
           lastActiveDate: new Date().toISOString().split('T')[0],
         });
+
+        // Sync to Supabase in background
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user) {
+            const activityIdMap: Record<string, string> = {
+              'Respiración Guiada': '1',
+              'Diario Estelar': '2',
+              'Relajación Progresiva': '3',
+              'Conexión 5 Sentidos': '4',
+              'Cápsula de Papel': '5',
+              'Pomodoro de Paz': '6',
+              'Diario Ciego': '7',
+              'Astillero de Victorias': '8',
+              'Abrazo de Mariposa': '9',
+              'Mensaje en una Botella': '10',
+            };
+            const activityId = activityIdMap[title] || '0';
+
+            supabase.from('activity_logs').insert({
+              user_id: user.id,
+              activity_id: activityId,
+              activity_name: title,
+              plan: get().currentPlan,
+              started_at: new Date().toISOString(),
+              completed: true,
+            }).then(({ error }) => {
+              if (error) console.log('Error Syncing Activity Log:', error);
+            });
+
+            supabase.from('user_progress').upsert({
+              user_id: user.id,
+              xp: newXP,
+              current_streak: get().currentStreak,
+              last_active_date: get().lastActiveDate,
+              current_plan: get().currentPlan,
+              unlocked_titles: get().unlockedTitles,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id' }).then(({ error }) => {
+              if (error) console.log('Error Saving User Progress:', error);
+            });
+          }
+        });
+
         // Check level up
         const plan = get().currentPlan || 'balance';
         const oldLevel = getCurrentLevel(plan, oldXP);
         const newLevel = getCurrentLevel(plan, newXP);
         if (newLevel.level > oldLevel.level) {
           set({ pendingLevelUp: newLevel });
-          if (newLevel.reward?.type === 'title') {
-            const titles = get().unlockedTitles;
-            if (!titles.includes(newLevel.reward.id)) {
-              set({ unlockedTitles: [...titles, newLevel.reward.id] });
+          if (newLevel.reward) {
+            const rewards = get().unlockedRewards || [];
+            if (!rewards.includes(newLevel.reward.id)) {
+              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
+            }
+            if (newLevel.reward.type === 'title') {
+              const titles = get().unlockedTitles || [];
+              if (!titles.includes(newLevel.reward.id)) {
+                set({ unlockedTitles: [...titles, newLevel.reward.id] });
+              }
             }
           }
         }
@@ -399,10 +469,24 @@ export const useStore = create<AppState>()(
         const newLevel = getCurrentLevel(plan, newXP);
         if (newLevel.level > oldLevel.level) {
           set({ pendingLevelUp: newLevel });
+          if (newLevel.reward) {
+            const rewards = get().unlockedRewards || [];
+            if (!rewards.includes(newLevel.reward.id)) {
+              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
+            }
+            if (newLevel.reward.type === 'title') {
+              const titles = get().unlockedTitles || [];
+              if (!titles.includes(newLevel.reward.id)) {
+                set({ unlockedTitles: [...titles, newLevel.reward.id] });
+              }
+            }
+          }
         }
       },
       clearLevelUp: () => set({ pendingLevelUp: null }),
       setActiveTitle: (titleId) => set({ activeTitle: titleId }),
+      setActiveSound: (soundId) => set({ activeSound: soundId }),
+      setActiveLumiVariant: (variantId) => set({ activeLumiVariant: variantId }),
     }),
     {
       name: 'anima-app-storage',
@@ -429,6 +513,9 @@ export const useStore = create<AppState>()(
         currentStreak: state.currentStreak,
         activeTitle: state.activeTitle,
         unlockedTitles: state.unlockedTitles,
+        activeSound: state.activeSound,
+        activeLumiVariant: state.activeLumiVariant,
+        unlockedRewards: state.unlockedRewards,
       }),
     }
   )

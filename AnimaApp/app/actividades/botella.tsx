@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { GlassCard } from '../../components/ui';
+import { useStore } from '../../store/useStore';
 
 // Mock DB for the community bottles
 const COMMUNITY_MESSAGES = [
@@ -120,7 +121,7 @@ export default function BotellaScreen() {
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Mensaje en una Botella</Text>
-          <View style={{ width: 44 }} />
+          <View style={{ width: 28 }} />
         </View>
 
         <View style={styles.content}>
@@ -188,7 +189,7 @@ export default function BotellaScreen() {
               
               <GlassCard style={{ padding: 24, alignItems: 'center', marginTop: 16 }}>
                  <Ionicons name="water-outline" size={24} color="#38BDF8" style={{ marginBottom: 12 }} />
-                 <Text style={[styles.receivedText, { color: colors.textPrimary }]}>"{receivedMessage}"</Text>
+                 <Text style={[styles.receivedText, { color: colors.textPrimary }]}>&quot;{receivedMessage}&quot;</Text>
               </GlassCard>
 
               <Pressable 
@@ -196,7 +197,11 @@ export default function BotellaScreen() {
                   styles.doneButton,
                   pressed && { transform: [{ scale: 0.96 }] }
                 ]}
-                onPress={() => router.back()}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  useStore.getState().addCompletedActivity('Mensaje en una Botella', 'botella');
+                  router.back();
+                }}
               >
                 <Text style={styles.doneButtonText}>Guardar en el corazón</Text>
               </Pressable>

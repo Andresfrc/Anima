@@ -75,7 +75,7 @@ const RENACER_LEVELS: RouteLevel[] = [
     level: 3, title: 'Tallo Fuerte', xpRequired: 400,
     icon: 'trending-up-outline', color: '#4ADE80',
     lumiMessage: 'Mira lo lejos que has llegado. Eres más fuerte de lo que crees. 💚',
-    reward: { id: 'ren_r2', type: 'sound', name: 'Sonido: Bosque Sereno', description: 'Nuevo ambiente para Pomodoro', icon: 'musical-notes-outline' },
+    reward: { id: 'ren_r2', type: 'sound', name: 'Sonido: Viento de Montaña', description: 'El susurro del viento alpino para concentrarte', icon: 'musical-notes-outline' },
   },
   {
     level: 4, title: 'Flor Abierta', xpRequired: 800,
@@ -107,7 +107,7 @@ const AUTOCOMPASION_LEVELS: RouteLevel[] = [
     level: 3, title: 'Escudo de Bondad', xpRequired: 400,
     icon: 'shield-checkmark-outline', color: '#EC4899',
     lumiMessage: 'Tu autocompasión ya es un escudo contra la autocrítica. 🛡️',
-    reward: { id: 'aut_r2', type: 'sound', name: 'Sonido: Lluvia Suave', description: 'Ambiente reconfortante para meditar', icon: 'musical-notes-outline' },
+    reward: { id: 'aut_r2', type: 'sound', name: 'Sonido: Caja de Música', description: 'Melodía suave y nostálgica para calmar la mente', icon: 'musical-notes-outline' },
   },
   {
     level: 4, title: 'Espejo Compasivo', xpRequired: 800,
@@ -139,7 +139,7 @@ const BALANCE_LEVELS: RouteLevel[] = [
     level: 3, title: 'Ojo de la Tormenta', xpRequired: 400,
     icon: 'thunderstorm-outline', color: '#3B82F6',
     lumiMessage: 'El caos sigue afuera, pero tú estás en calma. Eso es poder. ⚡',
-    reward: { id: 'bal_r2', type: 'sound', name: 'Sonido: Olas de Paz', description: 'El mar como fondo de concentración', icon: 'musical-notes-outline' },
+    reward: { id: 'bal_r2', type: 'sound', name: 'Sonido: Cuencos Tibetanos', description: 'Vibraciones armónicas para meditación profunda', icon: 'musical-notes-outline' },
   },
   {
     level: 4, title: 'Maestro Interior', xpRequired: 800,
@@ -171,7 +171,7 @@ const DESCUBRIMIENTO_LEVELS: RouteLevel[] = [
     level: 3, title: 'Alquimista', xpRequired: 400,
     icon: 'flask-outline', color: '#F59E0B',
     lumiMessage: 'Conviertes cada experiencia en conocimiento. Eso es alquimia. ⚗️',
-    reward: { id: 'des_r2', type: 'sound', name: 'Sonido: Noche Estrellada', description: 'Ambiente cósmico para reflexionar', icon: 'musical-notes-outline' },
+    reward: { id: 'des_r2', type: 'sound', name: 'Sonido: Ruido Cósmico', description: 'Frecuencia profunda del espacio para la introspección', icon: 'musical-notes-outline' },
   },
   {
     level: 4, title: 'Visionario/a', xpRequired: 800,
@@ -203,7 +203,7 @@ const SOLEDAD_LEVELS: RouteLevel[] = [
     level: 3, title: 'Constructor/a de Puentes', xpRequired: 400,
     icon: 'git-merge-outline', color: '#8B5CF6',
     lumiMessage: 'Cada conexión que haces construye un puente. Y tú los construyes bien. 🌉',
-    reward: { id: 'sol_r2', type: 'sound', name: 'Sonido: Fogata Cálida', description: 'El calor de estar acompañado/a', icon: 'musical-notes-outline' },
+    reward: { id: 'sol_r2', type: 'sound', name: 'Sonido: Piano Distante', description: 'Notas suaves y espaciadas de piano melancólico', icon: 'musical-notes-outline' },
   },
   {
     level: 4, title: 'Tejedor/a de Lazos', xpRequired: 800,

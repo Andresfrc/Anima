@@ -16,6 +16,14 @@ import { AVATAR_CATEGORIES, getAvatarSource, AvatarItem } from '../../constants/
 import { getCurrentLevel, getNextLevel, getLevelProgress, ROUTE_PROGRESSIONS } from '../../constants/progressionSystem';
 import { supabase } from '../../lib/supabase';
 
+const VARIANT_MAP: Record<string, string> = {
+  ren_r4: 'fenix',
+  aut_r4: 'mariposa',
+  bal_r4: 'zen',
+  des_r4: 'cosmico',
+  sol_r4: 'guardian',
+};
+
 export default function PerfilScreen() {
   const router = useRouter();
   const userName = useStore((s) => s.userName);
@@ -33,8 +41,15 @@ export default function PerfilScreen() {
   const unlockedTitles = useStore((s) => s.unlockedTitles);
   const currentStreak = useStore((s) => s.currentStreak);
   const setActiveTitle = useStore((s) => s.setActiveTitle);
+  const activeSound = useStore((s) => s.activeSound);
+  const activeLumiVariant = useStore((s) => s.activeLumiVariant);
+  const unlockedRewards = useStore((s) => s.unlockedRewards) || [];
+  const setActiveSound = useStore((s) => s.setActiveSound);
+  const setActiveLumiVariant = useStore((s) => s.setActiveLumiVariant);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [showRewardsGallery, setShowRewardsGallery] = useState(false);
+  const [galleryTab, setGalleryTab] = useState<'titles' | 'sounds' | 'skins'>('titles');
   const [newName, setNewName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -179,6 +194,135 @@ export default function PerfilScreen() {
     return null;
   }, [activeTitle]);
 
+  const allRewardsList = useMemo(() => {
+    const list: Array<{
+      routeId: string;
+      routeName: string;
+      routeColor: string;
+      routeEmoji: string;
+      level: number;
+      xpRequired: number;
+      reward: {
+        id: string;
+        type: 'lumi_variant' | 'sound' | 'theme' | 'breathing' | 'title';
+        name: string;
+        description: string;
+        icon: string;
+      };
+    }> = [];
+    
+    for (const route of Object.values(ROUTE_PROGRESSIONS)) {
+      for (const lvl of route.levels) {
+        if (lvl.reward) {
+          list.push({
+            routeId: route.routeId,
+            routeName: route.routeName,
+            routeColor: route.color,
+            routeEmoji: route.emoji,
+            level: lvl.level,
+            xpRequired: lvl.xpRequired,
+            reward: lvl.reward,
+          });
+        }
+      }
+    }
+    return list;
+  }, []);
+
+  const filteredRewards = useMemo(() => {
+    if (galleryTab === 'titles') {
+      return allRewardsList.filter(item => item.reward.type === 'title');
+    }
+    if (galleryTab === 'sounds') {
+      return allRewardsList.filter(item => item.reward.type === 'sound');
+    }
+    if (galleryTab === 'skins') {
+      return allRewardsList.filter(item => item.reward.type === 'lumi_variant');
+    }
+    return [];
+  }, [allRewardsList, galleryTab]);
+
+  const renderRewardItem = useCallback(({ item }: { item: typeof allRewardsList[0] }) => {
+    const isUnlocked = unlockedRewards.includes(item.reward.id) || userXP >= item.xpRequired;
+    
+    let isActive = false;
+    if (item.reward.type === 'title') {
+      isActive = activeTitle === item.reward.id;
+    } else if (item.reward.type === 'sound') {
+      isActive = activeSound === item.reward.id;
+    } else if (item.reward.type === 'lumi_variant') {
+      isActive = activeLumiVariant === item.reward.id;
+    }
+    
+    const handleEquip = () => {
+      if (!isUnlocked) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (item.reward.type === 'title') {
+        setActiveTitle(isActive ? null : item.reward.id);
+      } else if (item.reward.type === 'sound') {
+        setActiveSound(isActive ? null : item.reward.id);
+      } else if (item.reward.type === 'lumi_variant') {
+        setActiveLumiVariant(isActive ? null : item.reward.id);
+      }
+    };
+
+    return (
+      <View style={[
+        styles.rewardCard,
+        { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' },
+        isActive && { borderColor: item.routeColor, borderWidth: 1.5 },
+        !isUnlocked && { opacity: 0.55 }
+      ]}>
+        <View style={[styles.rewardIconContainer, { backgroundColor: item.routeColor + '15' }]}>
+          {item.reward.type === 'lumi_variant' ? (
+            <Mascot size={42} variant={VARIANT_MAP[item.reward.id] as any} style={{ marginTop: 2 }} />
+          ) : (
+            <Ionicons name={item.reward.icon as any} size={22} color={item.routeColor} />
+          )}
+        </View>
+        
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text style={[styles.rewardName, { color: colors.textPrimary }]}>
+            {item.reward.name.replace('Título: ', '').replace('Sonido: ', '')}
+          </Text>
+          <Text style={[styles.rewardDesc, { color: colors.textSecondary }]}>
+            {item.reward.description}
+          </Text>
+          <Text style={{ fontSize: 10, fontFamily: 'Poppins_400Regular', color: colors.textLight }}>
+            {item.routeEmoji} Ruta {item.routeName} • Lv.{item.level}
+          </Text>
+        </View>
+        
+        <View style={{ justifyContent: 'center', paddingLeft: 6 }}>
+          {isUnlocked ? (
+            <Pressable
+              onPress={handleEquip}
+              style={[
+                styles.equipBtn,
+                isActive 
+                  ? { backgroundColor: item.routeColor } 
+                  : { backgroundColor: 'transparent', borderColor: colors.textLight, borderWidth: 1 }
+              ]}
+            >
+              {isActive ? (
+                <Ionicons name="checkmark" size={14} color="#FFF" />
+              ) : (
+                <Text style={[styles.equipBtnText, { color: colors.textPrimary }]}>Equipar</Text>
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.lockedBadge}>
+              <Ionicons name="lock-closed" size={13} color={colors.textLight} />
+              <Text style={{ fontSize: 9, fontFamily: 'Poppins_500Medium', color: colors.textLight, marginTop: 1 }}>
+                Lv.{item.level}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }, [unlockedRewards, userXP, activeTitle, activeSound, activeLumiVariant, colors, isDark]);
+
   const configItems = [
     { icon: 'compass-outline', label: 'Cambiar Mi Ruta', color: '#FCD34D', type: 'link', action: () => router.replace('/(onboarding)/select-plan') },
     { icon: 'moon-outline', label: 'Modo Lunar', color: colors.secondary, type: 'toggle', action: toggleTheme, active: isDark },
@@ -269,11 +413,36 @@ export default function PerfilScreen() {
               </View>
             </View>
             {activeTitleName && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
                 <Ionicons name="ribbon" size={14} color={routeColor} />
                 <Text style={{ fontSize: 12, fontFamily: 'Poppins_600SemiBold', color: routeColor }}>{activeTitleName.replace('Título: ', '')}</Text>
               </View>
             )}
+
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setShowRewardsGallery(true); }}
+              style={({ pressed }) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  marginTop: 16,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  backgroundColor: routeColor + '12',
+                  borderWidth: 1,
+                  borderColor: routeColor + '25',
+                },
+                pressed && { opacity: 0.8 }
+              ]}
+            >
+              <Ionicons name="gift-outline" size={18} color={routeColor} />
+              <Text style={{ fontSize: 13, fontFamily: 'Poppins_600SemiBold', color: routeColor }}>
+                Galería de Recompensas
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={routeColor} />
+            </Pressable>
           </View>
         </Animated.View>
 
@@ -494,6 +663,47 @@ export default function PerfilScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── MODAL: Galería de Recompensas ── */}
+      <Modal visible={showRewardsGallery} transparent animationType="slide" onRequestClose={() => setShowRewardsGallery(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.avatarPickerContent, { backgroundColor: colors.bgCard, height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Galería de Recompensas</Text>
+              <Pressable onPress={() => setShowRewardsGallery(false)}>
+                <Ionicons name="close" size={24} color={colors.textLight} />
+              </Pressable>
+            </View>
+
+            <View style={styles.categoryTabs}>
+              <Pressable onPress={() => setGalleryTab('titles')}
+                style={[styles.categoryTab, galleryTab === 'titles' && { backgroundColor: routeColor + '20', borderColor: routeColor }]}>
+                <Ionicons name="ribbon-outline" size={16} color={galleryTab === 'titles' ? routeColor : colors.textLight} />
+                <Text style={[styles.categoryTabText, { color: galleryTab === 'titles' ? routeColor : colors.textLight, fontFamily: 'Poppins_600SemiBold' }]}>Títulos</Text>
+              </Pressable>
+              <Pressable onPress={() => setGalleryTab('sounds')}
+                style={[styles.categoryTab, galleryTab === 'sounds' && { backgroundColor: routeColor + '20', borderColor: routeColor }]}>
+                <Ionicons name="musical-notes-outline" size={16} color={galleryTab === 'sounds' ? routeColor : colors.textLight} />
+                <Text style={[styles.categoryTabText, { color: galleryTab === 'sounds' ? routeColor : colors.textLight, fontFamily: 'Poppins_600SemiBold' }]}>Sonidos</Text>
+              </Pressable>
+              <Pressable onPress={() => setGalleryTab('skins')}
+                style={[styles.categoryTab, galleryTab === 'skins' && { backgroundColor: routeColor + '20', borderColor: routeColor }]}>
+                <Ionicons name="color-palette-outline" size={16} color={galleryTab === 'skins' ? routeColor : colors.textLight} />
+                <Text style={[styles.categoryTabText, { color: galleryTab === 'skins' ? routeColor : colors.textLight, fontFamily: 'Poppins_600SemiBold' }]}>Lumi</Text>
+              </Pressable>
+            </View>
+
+            <FlatList
+              data={filteredRewards}
+              keyExtractor={(item) => item.reward.id}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              renderItem={renderRewardItem}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -546,4 +756,47 @@ const styles = StyleSheet.create({
   avatarCheckBadge: { position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, borderWidth: 2, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   removeAvatarBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, marginTop: 8 },
   removeAvatarText: { fontSize: 14, fontFamily: 'Poppins_500Medium', color: '#E53E3E' },
+  rewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  rewardIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  rewardName: {
+    fontSize: 13,
+    fontFamily: 'Poppins_700Bold',
+  },
+  rewardDesc: {
+    fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
+    lineHeight: 15,
+  },
+  equipBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 72,
+  },
+  equipBtnText: {
+    fontSize: 11,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  lockedBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+  },
 });

@@ -14,6 +14,12 @@ const SOUND_FILES: Record<string, any> = {
   ocean: require('../assets/sounds/ocean.mp3'),
   fire: require('../assets/sounds/fire.mp3'),
   birds: require('../assets/sounds/birds.mp3'),
+  // Reward Ambient Sounds
+  viento_montana: require('../assets/sounds/viento_montana.m4a'),
+  caja_musica: require('../assets/sounds/caja_musica.m4a'),
+  cuencos_tibetanos: require('../assets/sounds/cuencos_tibetanos.mp3'),
+  ruido_cosmico: require('../assets/sounds/ruido_cosmico.mp3'),
+  piano_distante: require('../assets/sounds/piano_distante.mp3'),
 };
 
 type SoundName = keyof typeof SOUND_FILES;
