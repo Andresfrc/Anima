@@ -20,7 +20,6 @@ const NOTIFICATIONS_MOCK = [
   { id: '2', title: 'Tiempo de Pausa', desc: 'Tomarse 5 minutos para respirar ayuda mucho.', time: 'Hace 5h' },
 ];
 
-// ── Fecha LOCAL "YYYY-MM-DD" ──────────────────────────────────────────────────
 function getLocalToday(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -29,22 +28,18 @@ function getLocalToday(): string {
   return `${y}-${m}-${day}`;
 }
 
-// ── ISO completo con offset local, ej: "2026-06-17T20:30:00-05:00" ───────────
-// FIX: evita que la fecha se guarde un día adelante por diferencia UTC vs local
 function getLocalISOString(): string {
   const d = new Date();
-  const tzOffset = -d.getTimezoneOffset(); // en minutos
+  const tzOffset = -d.getTimezoneOffset();
   const sign = tzOffset >= 0 ? '+' : '-';
   const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0');
   const offsetStr = `${sign}${pad(tzOffset / 60)}:${pad(tzOffset % 60)}`;
-
   const y = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   const h = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
   const sec = String(d.getSeconds()).padStart(2, '0');
-
   return `${y}-${mo}-${day}T${h}:${min}:${sec}${offsetStr}`;
 }
 
@@ -65,6 +60,14 @@ export default function HomeScreen() {
   const avatarSource = getAvatarSource(profileAvatar);
   const activeRoute = EMOTIONAL_ROUTES.find(r => r.id === currentPlan);
 
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showXPGain, setShowXPGain] = useState(false);
+  const [showRouteInfo, setShowRouteInfo] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [microCompleted, setMicroCompleted] = useState<any[]>([]);
+  const [energyCompleted, setEnergyCompleted] = useState<any[]>([]);
+
+  // ── Verificar si ya registró ánimo hoy ────────────────────────────────────
   const alreadyLoggedMoodToday = useMemo(() => {
     const todayStr = getLocalToday();
     return moodHistory.some((entry) => {
@@ -75,9 +78,7 @@ export default function HomeScreen() {
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         return `${y}-${m}-${day}` === todayStr;
-      } catch {
-        return false;
-      }
+      } catch { return false; }
     });
   }, [moodHistory]);
 
@@ -91,124 +92,105 @@ export default function HomeScreen() {
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         return `${y}-${m}-${day}` === todayStr;
-      } catch {
-        return false;
-      }
+      } catch { return false; }
     });
   }, [moodHistory]);
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [showXPGain, setShowXPGain] = useState(false);
-  const [showRouteInfo, setShowRouteInfo] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [microCompleted, setMicroCompleted] = useState<any[]>([]);
-  const [energyCompleted, setEnergyCompleted] = useState<any[]>([]);
-
-  // ── 1. Obtener userId ─────────────────────────────────────────────────────
+  // ── FIX: cargar TODO en paralelo al montar ────────────────────────────────
+  // Antes: userId → (esperar) → micro → (esperar) → energy → renderiza
+  // Ahora: userId → todo en paralelo → renderiza  (~2x más rápido)
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUserId(user?.id ?? null);
-      if (user?.id) await syncUserDataFromSupabase(user.id);
-    };
-    getUser();
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUserId(session?.user?.id ?? null);
-      if (session?.user?.id) await syncUserDataFromSupabase(session.user.id);
-    });
-    return () => { listener.subscription.unsubscribe(); };
-  }, []);
-
-  // ── 2. Cargar micro retos ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const { data, error } = await supabase
-        .from('micro_challenges')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false })
-        .limit(20);
-
-      if (error) { console.log('MICRO ERROR:', error); return; }
-      if (!data) return;
-
-      const today = getLocalToday();
-      const todayRecords = data.filter(item => item.date?.substring(0, 10) === today);
-      console.log(`[MICRO] hoy: ${today} | registros hoy: ${todayRecords.length}`);
-      setMicroCompleted(todayRecords);
-    };
-    load();
-  }, [userId]);
-
-  // ── 3. Cargar energy tasks ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const { data, error } = await supabase
-        .from('energy_tasks')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) { console.log('ENERGY ERROR:', error); return; }
-      if (!data) return;
-
-      const today = getLocalToday();
-      const todayRecords = data.filter(item => item.created_at?.substring(0, 10) === today);
-      console.log(`[ENERGY] hoy: ${today} | registros hoy: ${todayRecords.length}`);
-      setEnergyCompleted(todayRecords);
-    };
-    load();
-  }, [userId]);
-
-  // ── 4. Cargar mood semanal ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const { data, error } = await supabase
-        .from('mood_logs')
-        .select('mood, created_at')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(7);
-      if (!error && data) {
-        const moodToScore: Record<string, number> = { animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1 };
-        useStore.setState({ weeklyMoodData: data.map((d) => moodToScore[d.mood] ?? 3).reverse() });
-      }
-    };
-    load();
-  }, [userId]);
-
-  // ── 5. Cargar actividades recientes ──────────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
+    const initData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data, error } = await supabase
-        .from('activity_logs')
-        .select('activity_name, activity_id, started_at, completed')
-        .eq('user_id', user.id)
-        .order('started_at', { ascending: false })
-        .limit(5);
-      if (error || !data) return;
-      const iconMap: Record<string, { icon: string; color: string }> = {
-        '1': { icon: 'water-outline', color: '#87CEEB' }, '2': { icon: 'star-outline', color: '#FCD34D' },
-        '3': { icon: 'leaf-outline', color: '#A8E6CF' }, '4': { icon: 'eye-outline', color: '#B39DDB' },
-        '5': { icon: 'heart-outline', color: '#E56B8A' }, '6': { icon: 'timer-outline', color: '#F6AD55' },
-        '7': { icon: 'book-outline', color: '#68D391' }, '8': { icon: 'trophy-outline', color: '#FCD34D' },
-        '9': { icon: 'hand-left-outline', color: '#B39DDB' }, '10': { icon: 'mail-outline', color: '#87CEEB' },
-      };
-      const mapped = data.map((log) => {
-        const meta = iconMap[log.activity_id] ?? { icon: 'checkmark-circle-outline', color: '#38B2AC' };
-        const diffMin = Math.floor((Date.now() - new Date(log.started_at).getTime()) / 60000);
-        const time = diffMin < 60 ? `Hace ${diffMin} min` : diffMin < 1440 ? `Hace ${Math.floor(diffMin / 60)}h` : `Hace ${Math.floor(diffMin / 1440)}d`;
-        return { title: log.activity_name, time, detail: log.completed ? 'Completada' : 'En progreso', icon: meta.icon, color: meta.color };
-      });
-      useStore.setState({ recentActivities: mapped });
+
+      setUserId(user.id);
+      const today = getLocalToday();
+
+      await Promise.all([
+        // Historial de mood + progreso XP
+        syncUserDataFromSupabase(user.id),
+
+        // Micro retos de hoy
+        supabase.from('micro_challenges')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false })
+          .limit(20)
+          .then(({ data }) => {
+            if (data) {
+              const todayRecords = data.filter(i => i.date?.substring(0, 10) === today);
+              console.log(`[MICRO] hoy: ${today} | registros: ${todayRecords.length}`);
+              setMicroCompleted(todayRecords);
+            }
+          }),
+
+        // Energy tasks de hoy
+        supabase.from('energy_tasks')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+          .then(({ data }) => {
+            if (data) {
+              const todayRecords = data.filter(i => i.created_at?.substring(0, 10) === today);
+              console.log(`[ENERGY] hoy: ${today} | registros: ${todayRecords.length}`);
+              setEnergyCompleted(todayRecords);
+            }
+          }),
+
+        // Mood semanal
+        supabase.from('mood_logs')
+          .select('mood, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(7)
+          .then(({ data, error }) => {
+            if (!error && data) {
+              const moodToScore: Record<string, number> = { animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1 };
+              useStore.setState({ weeklyMoodData: data.map((d) => moodToScore[d.mood] ?? 3).reverse() });
+            }
+          }),
+
+        // Actividades recientes
+        supabase.from('activity_logs')
+          .select('activity_name, activity_id, started_at, completed')
+          .eq('user_id', user.id)
+          .order('started_at', { ascending: false })
+          .limit(5)
+          .then(({ data, error }) => {
+            if (error || !data) return;
+            const iconMap: Record<string, { icon: string; color: string }> = {
+              '1': { icon: 'water-outline', color: '#87CEEB' }, '2': { icon: 'star-outline', color: '#FCD34D' },
+              '3': { icon: 'leaf-outline', color: '#A8E6CF' }, '4': { icon: 'eye-outline', color: '#B39DDB' },
+              '5': { icon: 'heart-outline', color: '#E56B8A' }, '6': { icon: 'timer-outline', color: '#F6AD55' },
+              '7': { icon: 'book-outline', color: '#68D391' }, '8': { icon: 'trophy-outline', color: '#FCD34D' },
+              '9': { icon: 'hand-left-outline', color: '#B39DDB' }, '10': { icon: 'mail-outline', color: '#87CEEB' },
+            };
+            const mapped = data.map((log) => {
+              const meta = iconMap[log.activity_id] ?? { icon: 'checkmark-circle-outline', color: '#38B2AC' };
+              const diffMin = Math.floor((Date.now() - new Date(log.started_at).getTime()) / 60000);
+              const time = diffMin < 60 ? `Hace ${diffMin} min` : diffMin < 1440 ? `Hace ${Math.floor(diffMin / 60)}h` : `Hace ${Math.floor(diffMin / 1440)}d`;
+              return { title: log.activity_name, time, detail: log.completed ? 'Completada' : 'En progreso', icon: meta.icon, color: meta.color };
+            });
+            useStore.setState({ recentActivities: mapped });
+          }),
+      ]);
     };
-    load();
+
+    initData();
+
+    // Auth state change (login/logout)
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+        await syncUserDataFromSupabase(session.user.id);
+      } else {
+        setUserId(null);
+      }
+    });
+
+    return () => { listener.subscription.unsubscribe(); };
   }, []);
 
   // ── Scroll a mood ─────────────────────────────────────────────────────────
@@ -231,17 +213,14 @@ export default function HomeScreen() {
     const alreadyDone = microCompleted.some(item => item.date?.substring(0, 10) === today);
     if (alreadyDone) { console.log('⚠️ YA EXISTE HOY (micro)'); return; }
 
-    // FIX: usar fecha local con offset para que el día guardado coincida con hora Colombia
     const localISO = getLocalISOString();
-    console.log(`[MICRO] Guardando con fecha local: ${localISO}`);
-
     const { data, error } = await supabase
       .from('micro_challenges')
       .insert({ user_id: user.id, challenge_id: challengeId, completed: true, date: localISO })
       .select();
 
     if (error) { console.log('INSERT MICRO ERROR:', error); return; }
-    console.log('[MICRO] ✅ Guardado:', data);
+    console.log('[MICRO] ✅ Guardado');
     if (data) setMicroCompleted((prev) => [...prev, ...data]);
   };
 
@@ -257,17 +236,14 @@ export default function HomeScreen() {
       );
       if (alreadyDone) { console.log('⚠️ YA EXISTE ESTA TASK HOY'); return; }
 
-      // FIX: usar fecha local con offset para que el día guardado coincida con hora Colombia
       const localISO = getLocalISOString();
-      console.log(`[ENERGY] Guardando con fecha local: ${localISO}`);
-
       const { data, error } = await supabase
         .from('energy_tasks')
         .insert({ user_id: user.id, task_name: taskName, completed: true, created_at: localISO })
         .select();
 
       if (error) { console.log('INSERT ENERGY ERROR:', error); return; }
-      console.log('[ENERGY] ✅ Guardado:', data);
+      console.log('[ENERGY] ✅ Guardado');
       if (data) setEnergyCompleted((prev) => [...prev, ...data]);
     } catch (err) {
       console.log('Error energía:', err);
@@ -387,18 +363,17 @@ export default function HomeScreen() {
 
         {/* Mood Selector */}
         <Animated.View entering={FadeInUp.duration(400).delay(500)}>
-          <SectionHeader title="¿Cómo te sientes?" subtitle={alreadyLoggedMoodToday ? "Tu bienestar de hoy está al día" : "Selecciona tu estado de ánimo"} />
+          <SectionHeader
+            title="¿Cómo te sientes?"
+            subtitle={alreadyLoggedMoodToday ? 'Tu bienestar de hoy está al día' : 'Selecciona tu estado de ánimo'}
+          />
           {alreadyLoggedMoodToday && todayMoodEntry ? (
             <GlassCard style={styles.moodCard}>
               <View style={{ alignItems: 'center', paddingVertical: 8 }}>
                 <View style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
+                  width: 56, height: 56, borderRadius: 28,
                   backgroundColor: (MoodConfig[todayMoodEntry.mood]?.color || colors.primary) + '15',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 12
+                  alignItems: 'center', justifyContent: 'center', marginBottom: 12,
                 }}>
                   <Text style={{ fontSize: 28 }}>{MoodConfig[todayMoodEntry.mood]?.emoji || '✨'}</Text>
                 </View>
@@ -406,7 +381,7 @@ export default function HomeScreen() {
                   Hoy registraste: {MoodConfig[todayMoodEntry.mood]?.label}
                 </Text>
                 <Text style={[styles.moodLoggedSub, { color: colors.textLight }]}>
-                  ¡Gracias por compartir tu sentir hoy! Vuelve mañana para seguir cuidando de ti y mantener tu racha. 🌱
+                  ¡Gracias por compartir tu sentir hoy! Vuelve mañana para seguir cuidando de ti. 🌱
                 </Text>
               </View>
             </GlassCard>
