@@ -21,7 +21,6 @@ import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-// Animated decorative orb — idéntico al del login para mantener coherencia visual
 function FloatingOrb({ delay, color, size, top, left }: {
   delay: number; color: string; size: number; top: number; left: number;
 }) {
@@ -70,7 +69,7 @@ export default function ForgotPasswordScreen() {
   const inputBg = isDark ? 'rgba(255,255,255,0.02)' : '#F7FAFC';
   const inputBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
 
-  // ── Paso 1: enviar código de recuperación al correo ─────────────────────────
+  // ── Paso 1: verificar correo + enviar código ──────────────────────────────
   const handleSendCode = async () => {
     if (!email.includes('@')) {
       setError('Ingresa un correo electrónico válido.');
@@ -79,11 +78,25 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setLoading(true);
     try {
+      // FIX: verificar si el correo está registrado en profiles antes de enviar
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.trim().toLowerCase())
+        .single();
+
+      if (profileError || !profile) {
+        setError('No encontramos una cuenta con ese correo. Verifica e intenta de nuevo.');
+        return;
+      }
+
+      // Email registrado → enviar código de recuperación
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (resetError) {
         setError(resetError.message);
         return;
       }
+
       setStep('reset');
     } catch {
       setError('No pudimos enviar el código. Revisa tu conexión e intenta de nuevo.');
@@ -92,7 +105,7 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  // ── Paso 2: verificar código + establecer nueva contraseña ──────────────────
+  // ── Paso 2: verificar código + establecer nueva contraseña ────────────────
   const handleResetPassword = async () => {
     if (code.trim().length < 6 || code.trim().length > 10) {
       setError('El código de seguridad debe tener entre 6 y 10 dígitos.');
@@ -105,7 +118,6 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setLoading(true);
     try {
-      // Verificar el código de recuperación — esto crea una sesión temporal
       const { error: otpError } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: code.trim(),
@@ -115,13 +127,11 @@ export default function ForgotPasswordScreen() {
         setError('Código inválido o expirado. Solicita uno nuevo.');
         return;
       }
-      // Con la sesión activa, actualizamos la contraseña
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
         setError(updateError.message);
         return;
       }
-      // Cerramos la sesión temporal: el usuario debe entrar con su nueva contraseña
       await supabase.auth.signOut();
       setStep('done');
     } catch {
@@ -148,10 +158,10 @@ export default function ForgotPasswordScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <FloatingOrb delay={0} color="rgba(91,155,213,0.12)" size={120} top={60} left={-30} />
-      <FloatingOrb delay={500} color="rgba(155,142,196,0.10)" size={100} top={140} left={SCREEN_W - 60} />
+      <FloatingOrb delay={0}   color="rgba(91,155,213,0.12)"  size={120} top={60}            left={-30} />
+      <FloatingOrb delay={500} color="rgba(155,142,196,0.10)" size={100} top={140}           left={SCREEN_W - 60} />
       <FloatingOrb delay={1000} color="rgba(168,230,207,0.12)" size={80} top={SCREEN_W * 0.8} left={20} />
-      <FloatingOrb delay={800} color="rgba(247,201,126,0.10)" size={60} top={SCREEN_W * 0.5} left={SCREEN_W - 40} />
+      <FloatingOrb delay={800} color="rgba(247,201,126,0.10)" size={60}  top={SCREEN_W * 0.5} left={SCREEN_W - 40} />
 
       <ParticlesBackground count={15} />
 
@@ -170,7 +180,7 @@ export default function ForgotPasswordScreen() {
                   <ActivityIndicator size="small" color={colors.primary} />
                 </View>
                 <Text style={[styles.loadingTitle, { color: colors.textPrimary }]}>
-                  {step === 'email' ? 'Enviando código' : 'Actualizando'}
+                  {step === 'email' ? 'Verificando correo' : 'Actualizando'}
                 </Text>
                 <Text style={[styles.loadingSubtext, { color: colors.textLight }]}>Un momento...</Text>
               </View>
@@ -179,10 +189,7 @@ export default function ForgotPasswordScreen() {
         </Animated.View>
       )}
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -208,7 +215,6 @@ export default function ForgotPasswordScreen() {
           </AnimatedEntrance>
 
           {step === 'done' ? (
-            // ── Pantalla de éxito ───────────────────────────────────────────────
             <AnimatedEntrance delay={200} from="bottom">
               <View style={styles.titleSection}>
                 <Text style={[styles.title, { color: colors.textPrimary }]}>¡Contraseña actualizada!</Text>
@@ -233,7 +239,6 @@ export default function ForgotPasswordScreen() {
             </AnimatedEntrance>
           ) : (
             <>
-              {/* Title */}
               <AnimatedEntrance delay={200} from="top">
                 <View style={styles.titleSection}>
                   <Text style={[styles.title, { color: colors.textPrimary }]}>Recuperar contraseña</Text>
@@ -245,7 +250,6 @@ export default function ForgotPasswordScreen() {
                 </View>
               </AnimatedEntrance>
 
-              {/* Form Card */}
               <AnimatedEntrance delay={300} from="bottom">
                 <GlassCard style={styles.formContainer}>
                   <View style={styles.formContent}>
@@ -265,7 +269,6 @@ export default function ForgotPasswordScreen() {
                       </View>
                     ) : (
                       <>
-                        {/* Código OTP — centrado, sin icono para no descentrar */}
                         <View style={[styles.inputWrap, styles.codeWrap, { backgroundColor: inputBg, borderColor: inputBorder, borderWidth: 1 }]}>
                           <TextInput
                             style={[styles.input, styles.codeInput, { color: colors.textPrimary }]}
@@ -279,7 +282,6 @@ export default function ForgotPasswordScreen() {
                           />
                         </View>
 
-                        {/* Nueva contraseña */}
                         <View>
                           <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder, borderWidth: 1 }]}>
                             <Ionicons name="lock-closed-outline" size={20} color={colors.textLight} style={styles.inputIcon} />
@@ -315,7 +317,6 @@ export default function ForgotPasswordScreen() {
                       </>
                     )}
 
-                    {/* Error inline */}
                     {error && (
                       <Animated.View entering={FadeIn.duration(250)} style={styles.errorWrap}>
                         <Ionicons name="alert-circle-outline" size={15} color="#EF4444" />
@@ -340,7 +341,6 @@ export default function ForgotPasswordScreen() {
                 </GlassCard>
               </AnimatedEntrance>
 
-              {/* Back to login */}
               <AnimatedEntrance delay={400}>
                 <View style={styles.loginSection}>
                   <Text style={[styles.loginText, { color: colors.textSecondary }]}>¿La recordaste? </Text>
@@ -372,12 +372,8 @@ const styles = StyleSheet.create({
     borderRadius: 32, paddingVertical: 36, paddingHorizontal: 40,
     alignItems: 'center',
   },
-  loadingTitle: {
-    marginTop: 14, fontSize: 18, fontFamily: 'Poppins_700Bold',
-  },
-  loadingSubtext: {
-    marginTop: 4, fontSize: 13, fontFamily: 'Poppins_400Regular',
-  },
+  loadingTitle: { marginTop: 14, fontSize: 18, fontFamily: 'Poppins_700Bold' },
+  loadingSubtext: { marginTop: 4, fontSize: 13, fontFamily: 'Poppins_400Regular' },
   backRow: { marginBottom: 8 },
   backBtn: {
     width: 38, height: 38, borderRadius: 14,
@@ -403,9 +399,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 16, paddingHorizontal: 16, height: 56,
   },
-  codeWrap: {
-    justifyContent: 'center',
-  },
+  codeWrap: { justifyContent: 'center' },
   inputIcon: { marginRight: 12 },
   input: {
     flex: 1, height: '100%', fontSize: 15, color: Colors.textPrimary,
@@ -413,8 +407,7 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     fontSize: 20, letterSpacing: 6, fontFamily: 'Poppins_600SemiBold',
-    textAlign: 'center',
-    paddingLeft: 6,
+    textAlign: 'center', paddingLeft: 6,
   },
   strengthRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -428,18 +421,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.08)',
     borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
   },
-  errorText: {
-    flex: 1, fontSize: 12, color: '#EF4444', fontFamily: 'Poppins_400Regular',
-  },
+  errorText: { flex: 1, fontSize: 12, color: '#EF4444', fontFamily: 'Poppins_400Regular' },
   successIconWrap: { alignItems: 'center', paddingVertical: 8 },
   resendLink: { alignSelf: 'center', paddingVertical: 4 },
   resendText: { fontSize: 13, fontFamily: 'Poppins_500Medium' },
-  loginSection: {
-    flexDirection: 'row', justifyContent: 'center', marginTop: 28,
-  },
+  loginSection: { flexDirection: 'row', justifyContent: 'center', marginTop: 28 },
   loginText: { fontSize: 14, color: Colors.textSecondary },
-  loginLink: {
-    fontSize: 14, color: Colors.primary, fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
-  },
+  loginLink: { fontSize: 14, color: Colors.primary, fontWeight: '600', fontFamily: 'Poppins_600SemiBold' },
 });
