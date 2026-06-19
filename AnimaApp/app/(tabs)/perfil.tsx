@@ -46,6 +46,7 @@ export default function PerfilScreen() {
   const unlockedRewards = useStore((s) => s.unlockedRewards) || [];
   const setActiveSound = useStore((s) => s.setActiveSound);
   const setActiveLumiVariant = useStore((s) => s.setActiveLumiVariant);
+  const loadProgressFromSupabase = useStore((s) => s.loadProgressFromSupabase);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showRewardsGallery, setShowRewardsGallery] = useState(false);
@@ -61,7 +62,7 @@ export default function PerfilScreen() {
 
   const { toggleTheme, isDark, colors } = useTheme();
 
-  // ── Cargar perfil desde Supabase al montar ─────────────────────────────────
+  // ── Cargar perfil + progreso/recompensas desde Supabase al montar ──────────
   useEffect(() => {
     const loadProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -73,11 +74,15 @@ export default function PerfilScreen() {
         .eq('id', user.id)
         .single();
 
-      if (error) return;
-
       // Actualizar store solo si hay datos en Supabase
-      if (data?.username && data.username !== userName) updateUser(data.username);
-      if (data?.avatar && data.avatar !== profileAvatar) setProfileAvatar(data.avatar);
+      if (!error) {
+        if (data?.username && data.username !== userName) updateUser(data.username);
+        if (data?.avatar && data.avatar !== profileAvatar) setProfileAvatar(data.avatar);
+      }
+
+      // Trae xp, streak, títulos y recompensas guardadas (por si el usuario
+      // entró desde otro dispositivo o reinstaló la app)
+      await loadProgressFromSupabase();
     };
 
     loadProfile();

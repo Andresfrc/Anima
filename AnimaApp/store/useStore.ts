@@ -6,6 +6,23 @@
  * 2. Se eliminó BOT_RESPONSES y getBotResponse() → movido a services/ChatEngine.ts
  * 3. Se limpiaron los datos mock del estado inicial (moodHistory ahora empieza vacío)
  * 4. Las actividades se movieron a constants/activities.ts (datos estáticos ≠ estado)
+ *
+ * CAMBIOS DE RECOMPENSAS:
+ * 5. Se centralizó el desbloqueo de recompensas en handleLevelUp() (antes duplicado
+ *    4 veces: saveMoodEntry, addJournalEntry, addCompletedActivity, addXP).
+ * 6. Se agregó syncProgressToSupabase() que persiste xp, streak, unlocked_titles,
+ *    unlocked_rewards, active_title, active_sound y active_lumi_variant en `user_progress`.
+ * 7. Se agregó loadProgressFromSupabase() para traer el progreso guardado al iniciar sesión.
+ *
+ * FIX CRÍTICO (XP no se guardaba en Diario Estelar y similares):
+ * 8. syncProgressToSupabase() vivía adentro de handleLevelUp(), así que el XP solo
+ *    se guardaba en Supabase cuando la acción hacía subir de nivel al usuario. Si no
+ *    subía de nivel (el caso más común — ej. una sola estrella del Diario Estelar),
+ *    el XP subía en pantalla y en AsyncStorage local, pero nunca llegaba al servidor.
+ *    Luego, loadProgressFromSupabase() pisaba ese XP local nuevo con el valor viejo
+ *    del servidor. Ahora handleLevelUp() SOLO desbloquea recompensas, y cada acción
+ *    que otorga XP (saveMoodEntry, addJournalEntry, addCompletedActivity, addXP)
+ *    llama a syncProgressToSupabase() de forma incondicional, suba o no de nivel.
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -133,361 +150,393 @@ interface AppState {
   setActiveTitle: (titleId: string | null) => void;
   setActiveSound: (soundId: string | null) => void;
   setActiveLumiVariant: (variantId: string | null) => void;
+  loadProgressFromSupabase: () => Promise<void>;
 }
 
 export const useStore = create<AppState>()(
   persist(
-    (set, get) => ({
-      // Hydration
-      _hasHydrated: false,
-      setHasHydrated: (val: boolean) => set({ _hasHydrated: val }),
-
-      // Debug
-      mockLateNight: false,
-      setMockLateNight: (val: boolean) => set({ mockLateNight: val }),
-      
-      // UI State
-      _scrollToMood: false,
-
-      // Auth
-      isAuthenticated: false,
-      userName: '',
-      userEmail: '',
-      profileAvatar: null,
-      showSplash: true,
-      notificationsEnabled: true,
-      
-      // Plan
-      currentPlan: null,
-      recommendedPlan: null,
-      
-      // Mood — FIX: Estado inicial limpio, sin datos mock
-      currentMood: null,
-      moodHistory: [],
-      weeklyMoodData: [0, 0, 0, 0, 0, 0, 0],
-      
-      // Chat
-      messages: [],
-      isTyping: false,
-      
-      // Journal
-      journalEntries: [],
-      
-      // Activities — Datos estáticos importados desde constants
-      activities: DEFAULT_ACTIVITIES,
-      recentActivities: [],
-      microCompleted: [],
-      energyCompleted: [],
-      
-
-      
-      // Progression
-      userXP: 0,
-      lastActiveDate: null,
-      currentStreak: 0,
-      pendingLevelUp: null,
-      activeTitle: null,
-      unlockedTitles: [],
-      activeSound: null,
-      activeLumiVariant: null,
-      unlockedRewards: [],
-      
-      // Actions
-      login: (email, name) => set({ isAuthenticated: true, userEmail: email, userName: name || 'Usuario' }),
-      updateUser: (name) => set({ userName: name }),
-      setProfileAvatar: (avatarId) => set({ profileAvatar: avatarId }),
-      logout: () => {
-        SoundService.stopAmbient();
-        set({ 
-          isAuthenticated: false, userName: '', userEmail: '', profileAvatar: null, 
-          messages: [], currentPlan: null, recommendedPlan: null,
-          currentMood: null, moodHistory: [], weeklyMoodData: [0, 0, 0, 0, 0, 0, 0],
-          journalEntries: [], recentActivities: [],
-          userXP: 0, lastActiveDate: null, currentStreak: 0,
-          pendingLevelUp: null, activeTitle: null, unlockedTitles: [],
-          activeSound: null, activeLumiVariant: null, unlockedRewards: [],
-          microCompleted: [],
-          energyCompleted: [],
-        });
-      },
-      hideSplash: () => set({ showSplash: false }),
-      toggleNotifications: (enabled: boolean) => {
-        set({ notificationsEnabled: enabled });
-        if (!enabled) {
-          NotificationService.cancelAllScheduledNotifications();
-        }
-      },
-      setPlan: (planId) => set({ currentPlan: planId }),
-      setRecommendedPlan: (planId) => set({ recommendedPlan: planId }),
-      setMood: (mood) => set({ currentMood: mood }),
-      saveMoodEntry: (note?: string) => {
-        const { currentMood, moodHistory } = get();
-        if (!currentMood) return;
-        const labels: Record<MoodType, string> = {
-          animado: 'Animado', mejor: 'Mejor', neutral: 'Neutral',
-          triste: 'Triste', muy_triste: 'Muy Triste',
-        };
-        const newEntry: MoodEntry = {
-          id: Date.now().toString(),
-          mood: currentMood,
-          date: new Date().toISOString(),
-          label: labels[currentMood],
-          note,
-        };
-
-        const scores: Record<MoodType, number> = {
-          animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1,
-        };
-        const score = scores[currentMood];
-        const newWeekly = [...get().weeklyMoodData.slice(1), score];
-
-        const oldXP = get().userXP;
-        const newXP = oldXP + XP_EVENTS.mood.amount;
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Streak calculation
-        const { lastActiveDate, currentStreak } = get();
-        let newStreak = currentStreak;
-        let bonusXP = 0;
-        if (lastActiveDate) {
-          const lastDate = new Date(lastActiveDate);
-          const todayDate = new Date(today);
-          const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays === 1) {
-            newStreak = currentStreak + 1;
-            if (newStreak === 3) bonusXP = XP_EVENTS.streak.amount; // +50 at 3-day streak
-          } else if (diffDays >= 3) {
-            bonusXP = XP_EVENTS.comeback.amount; // +30 comeback
-            newStreak = 1;
-          } else if (diffDays === 0) {
-            // Same day, no streak change
-          } else {
-            newStreak = 1; // Reset streak (missed 1 day)
-          }
-        } else {
-          newStreak = 1;
-        }
-
-        set({ 
-          moodHistory: [newEntry, ...moodHistory], 
-          currentMood: null,
-          weeklyMoodData: newWeekly,
-          userXP: newXP + bonusXP,
-          lastActiveDate: today,
-          currentStreak: newStreak,
-        });
-
-        // Check level up
-        const plan = get().currentPlan || 'balance';
-        const oldLevel = getCurrentLevel(plan, oldXP);
-        const newLevel = getCurrentLevel(plan, newXP + bonusXP);
-        if (newLevel.level > oldLevel.level) {
-          set({ pendingLevelUp: newLevel });
-          if (newLevel.reward) {
-            const rewards = get().unlockedRewards || [];
-            if (!rewards.includes(newLevel.reward.id)) {
-              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
-            }
-            if (newLevel.reward.type === 'title') {
-              const titles = get().unlockedTitles || [];
-              if (!titles.includes(newLevel.reward.id)) {
-                set({ unlockedTitles: [...titles, newLevel.reward.id] });
-              }
-            }
-          }
-        }
-      },
-      removeMoodEntry: (id: string) => {
-        const { moodHistory } = get();
-        const updated = moodHistory.filter(e => e.id !== id);
-        // Recalculate weeklyMoodData from last 7 entries
-        const scores: Record<MoodType, number> = {
-          animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1,
-        };
-        const last7 = updated.slice(0, 7);
-        const newWeekly = Array.from({ length: 7 }, (_, i) => {
-          const entry = last7[6 - i];
-          return entry ? scores[entry.mood as MoodType] || 0 : 0;
-        });
-        set({ moodHistory: updated, weeklyMoodData: newWeekly });
-      },
-      sendMessage: (text) => {
-        const { messages } = get();
-        const userMsg: ChatMessage = {
-          id: Date.now().toString(),
-          text,
-          sender: 'user',
-          timestamp: new Date(),
-        };
-        set({ messages: [...messages, userMsg], isTyping: true });
-
-        // ChatEngine es un servicio externo asíncrono (API real).
-        // FIX: getBotResponse devuelve Promise<string>; antes se asignaba la Promise
-        // directamente a `text`, por lo que el chat mostraba "[object Promise]".
-        getBotResponse(text)
-          .then((reply) => {
-            const botMsg: ChatMessage = {
-              id: (Date.now() + 1).toString(),
-              text: reply,
-              sender: 'bot',
-              timestamp: new Date(),
-            };
-            set((state) => ({
-              messages: [...state.messages, botMsg],
-              isTyping: false,
-            }));
-          })
-          .catch(() => set({ isTyping: false }));
-      },
-      addJournalEntry: (entry) => {
-        const oldXP = get().userXP;
-        const newXP = oldXP + XP_EVENTS.journal.amount;
-        set((state) => ({
-          journalEntries: [...state.journalEntries, entry],
-          userXP: newXP,
-          lastActiveDate: new Date().toISOString().split('T')[0],
-        }));
-        // Check level up
-        const plan = get().currentPlan || 'balance';
-        const oldLevel = getCurrentLevel(plan, oldXP);
-        const newLevel = getCurrentLevel(plan, newXP);
-        if (newLevel.level > oldLevel.level) {
-          set({ pendingLevelUp: newLevel });
-          if (newLevel.reward) {
-            const rewards = get().unlockedRewards || [];
-            if (!rewards.includes(newLevel.reward.id)) {
-              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
-            }
-            if (newLevel.reward.type === 'title') {
-              const titles = get().unlockedTitles || [];
-              if (!titles.includes(newLevel.reward.id)) {
-                set({ unlockedTitles: [...titles, newLevel.reward.id] });
-              }
-            }
-          }
-        }
-      },
-      removeJournalEntry: (id) => {
-        set((state) => ({
-          journalEntries: state.journalEntries.filter((e) => e.id !== id),
-        }));
-      },
-      updateJournalEntry: (id, text) => {
-        set((state) => ({
-          journalEntries: state.journalEntries.map((e) =>
-            e.id === id ? { ...e, text } : e
-          ),
-        }));
-      },
-      addCompletedActivity: (title: string, type: string) => {
-        const { recentActivities } = get();
-        let icon = 'checkmark-circle-outline';
-        let color = '#38B2AC';
-        if (type === 'respiracion') { icon = 'water-outline'; color = '#87CEEB'; }
-        if (type === 'meditacion') { icon = 'sparkles-outline'; color = '#A8E6CF'; }
-        
-        const oldXP = get().userXP;
-        const newXP = oldXP + XP_EVENTS.activity.amount;
-        const newActivity = { title, time: 'Recién', detail: 'Completado', icon, color };
-        set({ 
-          recentActivities: [newActivity, ...recentActivities].slice(0, 5),
-          userXP: newXP,
-          lastActiveDate: new Date().toISOString().split('T')[0],
-        });
-
-        // Sync to Supabase in background
+    (set, get) => {
+      // ── Sincroniza progreso + recompensas con Supabase (en background) ──────
+      const syncProgressToSupabase = () => {
+        const s = get();
         supabase.auth.getUser().then(({ data: { user } }) => {
-          if (user) {
-            const activityIdMap: Record<string, string> = {
-              'Respiración Guiada': '1',
-              'Diario Estelar': '2',
-              'Relajación Progresiva': '3',
-              'Conexión 5 Sentidos': '4',
-              'Cápsula de Papel': '5',
-              'Pomodoro de Paz': '6',
-              'Diario Ciego': '7',
-              'Astillero de Victorias': '8',
-              'Abrazo de Mariposa': '9',
-              'Mensaje en una Botella': '10',
-            };
-            const activityId = activityIdMap[title] || '0';
-
-            supabase.from('activity_logs').insert({
-              user_id: user.id,
-              activity_id: activityId,
-              activity_name: title,
-              plan: get().currentPlan,
-              started_at: new Date().toISOString(),
-              completed: true,
-            }).then(({ error }) => {
-              if (error) console.log('Error Syncing Activity Log:', error);
+          if (!user) return;
+          supabase
+            .from('user_progress')
+            .upsert(
+              {
+                user_id: user.id,
+                xp: s.userXP,
+                current_streak: s.currentStreak,
+                last_active_date: s.lastActiveDate,
+                current_plan: s.currentPlan,
+                unlocked_titles: s.unlockedTitles,
+                unlocked_rewards: s.unlockedRewards,
+                active_title: s.activeTitle,
+                active_sound: s.activeSound,
+                active_lumi_variant: s.activeLumiVariant,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id' }
+            )
+            .then(({ error }) => {
+              if (error) console.log('Error guardando progreso/recompensas:', error);
             });
-
-            supabase.from('user_progress').upsert({
-              user_id: user.id,
-              xp: newXP,
-              current_streak: get().currentStreak,
-              last_active_date: get().lastActiveDate,
-              current_plan: get().currentPlan,
-              unlocked_titles: get().unlockedTitles,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id' }).then(({ error }) => {
-              if (error) console.log('Error Saving User Progress:', error);
-            });
-          }
         });
+      };
 
-        // Check level up
-        const plan = get().currentPlan || 'balance';
-        const oldLevel = getCurrentLevel(plan, oldXP);
-        const newLevel = getCurrentLevel(plan, newXP);
-        if (newLevel.level > oldLevel.level) {
-          set({ pendingLevelUp: newLevel });
-          if (newLevel.reward) {
-            const rewards = get().unlockedRewards || [];
-            if (!rewards.includes(newLevel.reward.id)) {
-              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
-            }
-            if (newLevel.reward.type === 'title') {
-              const titles = get().unlockedTitles || [];
-              if (!titles.includes(newLevel.reward.id)) {
-                set({ unlockedTitles: [...titles, newLevel.reward.id] });
-              }
+      // ── Maneja un level-up: SOLO desbloquea recompensa (no sincroniza) ──────
+      // El sync corre siempre desde quien llama a esta función (ver nota arriba).
+      const handleLevelUp = (newLevel: RouteLevel) => {
+        set({ pendingLevelUp: newLevel });
+        if (newLevel.reward) {
+          const rewards = get().unlockedRewards || [];
+          if (!rewards.includes(newLevel.reward.id)) {
+            set({ unlockedRewards: [...rewards, newLevel.reward.id] });
+          }
+          if (newLevel.reward.type === 'title') {
+            const titles = get().unlockedTitles || [];
+            if (!titles.includes(newLevel.reward.id)) {
+              set({ unlockedTitles: [...titles, newLevel.reward.id] });
             }
           }
         }
-      },
-      addXP: (amount: number) => {
-        const oldXP = get().userXP;
-        const newXP = oldXP + amount;
-        set({ 
-          userXP: newXP,
-          lastActiveDate: new Date().toISOString().split('T')[0],
-        });
-        const plan = get().currentPlan || 'balance';
-        const oldLevel = getCurrentLevel(plan, oldXP);
-        const newLevel = getCurrentLevel(plan, newXP);
-        if (newLevel.level > oldLevel.level) {
-          set({ pendingLevelUp: newLevel });
-          if (newLevel.reward) {
-            const rewards = get().unlockedRewards || [];
-            if (!rewards.includes(newLevel.reward.id)) {
-              set({ unlockedRewards: [...rewards, newLevel.reward.id] });
-            }
-            if (newLevel.reward.type === 'title') {
-              const titles = get().unlockedTitles || [];
-              if (!titles.includes(newLevel.reward.id)) {
-                set({ unlockedTitles: [...titles, newLevel.reward.id] });
-              }
-            }
+      };
+
+      return {
+        // Hydration
+        _hasHydrated: false,
+        setHasHydrated: (val: boolean) => set({ _hasHydrated: val }),
+
+        // Debug
+        mockLateNight: false,
+        setMockLateNight: (val: boolean) => set({ mockLateNight: val }),
+
+        // UI State
+        _scrollToMood: false,
+
+        // Auth
+        isAuthenticated: false,
+        userName: '',
+        userEmail: '',
+        profileAvatar: null,
+        showSplash: true,
+        notificationsEnabled: true,
+
+        // Plan
+        currentPlan: null,
+        recommendedPlan: null,
+
+        // Mood — FIX: Estado inicial limpio, sin datos mock
+        currentMood: null,
+        moodHistory: [],
+        weeklyMoodData: [0, 0, 0, 0, 0, 0, 0],
+
+        // Chat
+        messages: [],
+        isTyping: false,
+
+        // Journal
+        journalEntries: [],
+
+        // Activities — Datos estáticos importados desde constants
+        activities: DEFAULT_ACTIVITIES,
+        recentActivities: [],
+        microCompleted: [],
+        energyCompleted: [],
+
+        // Progression
+        userXP: 0,
+        lastActiveDate: null,
+        currentStreak: 0,
+        pendingLevelUp: null,
+        activeTitle: null,
+        unlockedTitles: [],
+        activeSound: null,
+        activeLumiVariant: null,
+        unlockedRewards: [],
+
+        // Actions
+        login: (email, name) => set({ isAuthenticated: true, userEmail: email, userName: name || 'Usuario' }),
+        updateUser: (name) => set({ userName: name }),
+        setProfileAvatar: (avatarId) => set({ profileAvatar: avatarId }),
+        logout: () => {
+          SoundService.stopAmbient();
+          set({
+            isAuthenticated: false, userName: '', userEmail: '', profileAvatar: null,
+            messages: [], currentPlan: null, recommendedPlan: null,
+            currentMood: null, moodHistory: [], weeklyMoodData: [0, 0, 0, 0, 0, 0, 0],
+            journalEntries: [], recentActivities: [],
+            userXP: 0, lastActiveDate: null, currentStreak: 0,
+            pendingLevelUp: null, activeTitle: null, unlockedTitles: [],
+            activeSound: null, activeLumiVariant: null, unlockedRewards: [],
+            microCompleted: [],
+            energyCompleted: [],
+          });
+        },
+        hideSplash: () => set({ showSplash: false }),
+        toggleNotifications: (enabled: boolean) => {
+          set({ notificationsEnabled: enabled });
+          if (!enabled) {
+            NotificationService.cancelAllScheduledNotifications();
           }
-        }
-      },
-      clearLevelUp: () => set({ pendingLevelUp: null }),
-      setActiveTitle: (titleId) => set({ activeTitle: titleId }),
-      setActiveSound: (soundId) => set({ activeSound: soundId }),
-      setActiveLumiVariant: (variantId) => set({ activeLumiVariant: variantId }),
-    }),
+        },
+        setPlan: (planId) => set({ currentPlan: planId }),
+        setRecommendedPlan: (planId) => set({ recommendedPlan: planId }),
+        setMood: (mood) => set({ currentMood: mood }),
+        saveMoodEntry: (note?: string) => {
+          const { currentMood, moodHistory } = get();
+          if (!currentMood) return;
+          const labels: Record<MoodType, string> = {
+            animado: 'Animado', mejor: 'Mejor', neutral: 'Neutral',
+            triste: 'Triste', muy_triste: 'Muy Triste',
+          };
+          const newEntry: MoodEntry = {
+            id: Date.now().toString(),
+            mood: currentMood,
+            date: new Date().toISOString(),
+            label: labels[currentMood],
+            note,
+          };
+
+          const scores: Record<MoodType, number> = {
+            animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1,
+          };
+          const score = scores[currentMood];
+          const newWeekly = [...get().weeklyMoodData.slice(1), score];
+
+          const oldXP = get().userXP;
+          const newXP = oldXP + XP_EVENTS.mood.amount;
+          const today = new Date().toISOString().split('T')[0];
+
+          // Streak calculation
+          const { lastActiveDate, currentStreak } = get();
+          let newStreak = currentStreak;
+          let bonusXP = 0;
+          if (lastActiveDate) {
+            const lastDate = new Date(lastActiveDate);
+            const todayDate = new Date(today);
+            const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays === 1) {
+              newStreak = currentStreak + 1;
+              if (newStreak === 3) bonusXP = XP_EVENTS.streak.amount; // +50 at 3-day streak
+            } else if (diffDays >= 3) {
+              bonusXP = XP_EVENTS.comeback.amount; // +30 comeback
+              newStreak = 1;
+            } else if (diffDays === 0) {
+              // Same day, no streak change
+            } else {
+              newStreak = 1; // Reset streak (missed 1 day)
+            }
+          } else {
+            newStreak = 1;
+          }
+
+          set({
+            moodHistory: [newEntry, ...moodHistory],
+            currentMood: null,
+            weeklyMoodData: newWeekly,
+            userXP: newXP + bonusXP,
+            lastActiveDate: today,
+            currentStreak: newStreak,
+          });
+
+          // Check level up
+          const plan = get().currentPlan || 'balance';
+          const oldLevel = getCurrentLevel(plan, oldXP);
+          const newLevel = getCurrentLevel(plan, newXP + bonusXP);
+          if (newLevel.level > oldLevel.level) {
+            handleLevelUp(newLevel);
+          }
+          // Sync incondicional: este XP se guarda siempre, suba o no de nivel.
+          syncProgressToSupabase();
+        },
+        removeMoodEntry: (id: string) => {
+          const { moodHistory } = get();
+          const updated = moodHistory.filter(e => e.id !== id);
+          // Recalculate weeklyMoodData from last 7 entries
+          const scores: Record<MoodType, number> = {
+            animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1,
+          };
+          const last7 = updated.slice(0, 7);
+          const newWeekly = Array.from({ length: 7 }, (_, i) => {
+            const entry = last7[6 - i];
+            return entry ? scores[entry.mood as MoodType] || 0 : 0;
+          });
+          set({ moodHistory: updated, weeklyMoodData: newWeekly });
+        },
+        sendMessage: (text) => {
+          const { messages } = get();
+          const userMsg: ChatMessage = {
+            id: Date.now().toString(),
+            text,
+            sender: 'user',
+            timestamp: new Date(),
+          };
+          set({ messages: [...messages, userMsg], isTyping: true });
+
+          // ChatEngine es un servicio externo asíncrono (API real).
+          // FIX: getBotResponse devuelve Promise<string>; antes se asignaba la Promise
+          // directamente a `text`, por lo que el chat mostraba "[object Promise]".
+          getBotResponse(text)
+            .then((reply) => {
+              const botMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                text: reply,
+                sender: 'bot',
+                timestamp: new Date(),
+              };
+              set((state) => ({
+                messages: [...state.messages, botMsg],
+                isTyping: false,
+              }));
+            })
+            .catch(() => set({ isTyping: false }));
+        },
+        addJournalEntry: (entry) => {
+          const oldXP = get().userXP;
+          const newXP = oldXP + XP_EVENTS.journal.amount;
+          set((state) => ({
+            journalEntries: [...state.journalEntries, entry],
+            userXP: newXP,
+            lastActiveDate: new Date().toISOString().split('T')[0],
+          }));
+          // Check level up
+          const plan = get().currentPlan || 'balance';
+          const oldLevel = getCurrentLevel(plan, oldXP);
+          const newLevel = getCurrentLevel(plan, newXP);
+          if (newLevel.level > oldLevel.level) {
+            handleLevelUp(newLevel);
+          }
+          // Sync incondicional: ESTE era el bug de Diario Estelar — antes solo se
+          // guardaba el XP en Supabase si la estrella hacía subir de nivel.
+          syncProgressToSupabase();
+        },
+        removeJournalEntry: (id) => {
+          set((state) => ({
+            journalEntries: state.journalEntries.filter((e) => e.id !== id),
+          }));
+        },
+        updateJournalEntry: (id, text) => {
+          set((state) => ({
+            journalEntries: state.journalEntries.map((e) =>
+              e.id === id ? { ...e, text } : e
+            ),
+          }));
+        },
+        addCompletedActivity: (title: string, type: string) => {
+          const { recentActivities } = get();
+          let icon = 'checkmark-circle-outline';
+          let color = '#38B2AC';
+          if (type === 'respiracion') { icon = 'water-outline'; color = '#87CEEB'; }
+          if (type === 'meditacion') { icon = 'sparkles-outline'; color = '#A8E6CF'; }
+
+          const oldXP = get().userXP;
+          const newXP = oldXP + XP_EVENTS.activity.amount;
+          const newActivity = { title, time: 'Recién', detail: 'Completado', icon, color };
+          set({
+            recentActivities: [newActivity, ...recentActivities].slice(0, 5),
+            userXP: newXP,
+            lastActiveDate: new Date().toISOString().split('T')[0],
+          });
+
+          // Sync de la actividad puntual (log) en background
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+              const activityIdMap: Record<string, string> = {
+                'Respiración Guiada': '1',
+                'Diario Estelar': '2',
+                'Relajación Progresiva': '3',
+                'Conexión 5 Sentidos': '4',
+                'Cápsula de Papel': '5',
+                'Pomodoro de Paz': '6',
+                'Diario Ciego': '7',
+                'Astillero de Victorias': '8',
+                'Abrazo de Mariposa': '9',
+                'Mensaje en una Botella': '10',
+              };
+              const activityId = activityIdMap[title] || '0';
+
+              supabase.from('activity_logs').insert({
+                user_id: user.id,
+                activity_id: activityId,
+                activity_name: title,
+                plan: get().currentPlan,
+                started_at: new Date().toISOString(),
+                completed: true,
+              }).then(({ error }) => {
+                if (error) console.log('Error Syncing Activity Log:', error);
+              });
+            }
+          });
+
+          // Check level up
+          const plan = get().currentPlan || 'balance';
+          const oldLevel = getCurrentLevel(plan, oldXP);
+          const newLevel = getCurrentLevel(plan, newXP);
+          if (newLevel.level > oldLevel.level) {
+            handleLevelUp(newLevel);
+          }
+          // Sync incondicional: el xp/streak/unlocked_titles/recompensas de
+          // user_progress se guarda siempre, suba o no de nivel.
+          syncProgressToSupabase();
+        },
+        addXP: (amount: number) => {
+          const oldXP = get().userXP;
+          const newXP = oldXP + amount;
+          set({
+            userXP: newXP,
+            lastActiveDate: new Date().toISOString().split('T')[0],
+          });
+          const plan = get().currentPlan || 'balance';
+          const oldLevel = getCurrentLevel(plan, oldXP);
+          const newLevel = getCurrentLevel(plan, newXP);
+          if (newLevel.level > oldLevel.level) {
+            handleLevelUp(newLevel);
+          }
+          syncProgressToSupabase();
+        },
+        clearLevelUp: () => set({ pendingLevelUp: null }),
+        setActiveTitle: (titleId) => {
+          set({ activeTitle: titleId });
+          syncProgressToSupabase();
+        },
+        setActiveSound: (soundId) => {
+          set({ activeSound: soundId });
+          syncProgressToSupabase();
+        },
+        setActiveLumiVariant: (variantId) => {
+          set({ activeLumiVariant: variantId });
+          syncProgressToSupabase();
+        },
+
+        // ── Trae el progreso guardado en Supabase (otro dispositivo, reinstalación, etc.) ──
+        loadProgressFromSupabase: async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const { data, error } = await supabase
+            .from('user_progress')
+            .select('xp, current_streak, last_active_date, current_plan, unlocked_titles, unlocked_rewards, active_title, active_sound, active_lumi_variant')
+            .eq('user_id', user.id)
+            .single();
+
+          if (error || !data) return;
+
+          set({
+            userXP: data.xp ?? get().userXP,
+            currentStreak: data.current_streak ?? get().currentStreak,
+            lastActiveDate: data.last_active_date ?? get().lastActiveDate,
+            currentPlan: data.current_plan ?? get().currentPlan,
+            unlockedTitles: data.unlocked_titles ?? get().unlockedTitles,
+            unlockedRewards: data.unlocked_rewards ?? get().unlockedRewards,
+            activeTitle: data.active_title ?? get().activeTitle,
+            activeSound: data.active_sound ?? get().activeSound,
+            activeLumiVariant: data.active_lumi_variant ?? get().activeLumiVariant,
+          });
+        },
+      };
+    },
     {
       name: 'anima-app-storage',
       storage: createJSONStorage(() => AsyncStorage),
