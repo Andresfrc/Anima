@@ -17,6 +17,7 @@ import { JewelButton, Mascot, GlassCard } from '../../components/ui';
 import { ParticlesBackground } from '../../components/ui/ParticlesBackground';
 import { useStore } from '../../store/useStore';
 import { supabase } from '../../lib/supabase';
+import { isValidEmail, validatePassword, getPasswordStrength, friendlyAuthError } from '../../utils/validation';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -55,7 +56,6 @@ export default function RegisterScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const login = useStore((s) => s.login);
-  const currentPlan = useStore((s) => s.currentPlan);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,8 +68,13 @@ export default function RegisterScreen() {
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
 
   const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || password.trim().length < 6) {
-      setAuthError('Completa todos los campos. La contraseña debe tener al menos 6 caracteres.');
+    if (!name.trim() || !isValidEmail(email)) {
+      setAuthError('Escribe tu nombre y un correo electrónico válido.');
+      return;
+    }
+    const pwError = validatePassword(password.trim());
+    if (pwError) {
+      setAuthError(pwError);
       return;
     }
 
@@ -87,7 +92,7 @@ export default function RegisterScreen() {
       });
 
       if (error) {
-        setAuthError(error.message);
+        setAuthError(friendlyAuthError(error.message));
         return;
       }
 
@@ -120,13 +125,13 @@ export default function RegisterScreen() {
         return;
       }
 
-      // ── 4. Sesión activa — navegar normalmente ─────────────────────────────
+      // ── 4. Sesión activa ───────────────────────────────────────────────────
+      // La navegación la decide el layout raíz (_layout.tsx) según
+      // isAuthenticated + currentPlan. Aquí solo marcamos la sesión.
       login(email.trim(), name.trim());
-      router.replace(!currentPlan ? '/(onboarding)/select-plan' : '/(tabs)');
 
     } catch (err: any) {
-      console.error(err);
-      setAuthError('Ocurrió un error inesperado. Intenta de nuevo.');
+      setAuthError(friendlyAuthError(err?.message));
     } finally {
       setLoading(false);
     }
@@ -134,16 +139,10 @@ export default function RegisterScreen() {
 
   const isFormValid =
     name.trim().length > 0 &&
-    email.includes('@') &&
-    password.length >= 6;
+    isValidEmail(email) &&
+    validatePassword(password) === null;
 
-  const getPasswordStrength = () => {
-    if (password.length === 0) return { level: 0, label: '', color: '' };
-    if (password.length < 4) return { level: 1, label: 'Débil', color: '#E53E3E' };
-    if (password.length < 6) return { level: 2, label: 'Media', color: Colors.accent };
-    return { level: 3, label: 'Fuerte', color: Colors.mint };
-  };
-  const pwStrength = getPasswordStrength();
+  const pwStrength = getPasswordStrength(password);
 
   // ── Pantalla de "confirma tu correo" ────────────────────────────────────────
   if (pendingConfirmation) {

@@ -38,7 +38,8 @@
           "icon": "./assets/images/mascot/respirando.png",
           "color": "#C8B6FF"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

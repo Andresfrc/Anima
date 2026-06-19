@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/theme';
+import { CURRENT_CONFIG } from '../../utils/devicePerformance';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -21,10 +22,20 @@ export function FloatingParticles({ count = 6, persistenceKey }: FloatingParticl
   const [positions, setPositions] = useState<{ x: number; y: number }[]>([]);
   const [loaded, setLoaded] = useState(false);
 
+  // Respeta el tier del dispositivo: en gama baja no se renderizan partículas.
+  const maxParticles = CURRENT_CONFIG.particleEffects ? CURRENT_CONFIG.starCount : 0;
+  const effectiveCount = Math.min(count, maxParticles);
+
   useEffect(() => {
+    if (effectiveCount === 0) {
+      setPositions([]);
+      setLoaded(true);
+      return;
+    }
+
     if (!persistenceKey) {
-      setPositions(Array.from({ length: count }).map((_, i) => ({
-        x: 20 + (i * (SCREEN_W - 40)) / count,
+      setPositions(Array.from({ length: effectiveCount }).map((_, i) => ({
+        x: 20 + (i * (SCREEN_W - 40)) / effectiveCount,
         y: 200 + Math.random() * 200,
       })));
       setLoaded(true);
@@ -37,7 +48,7 @@ export function FloatingParticles({ count = 6, persistenceKey }: FloatingParticl
         if (stored) {
           setPositions(JSON.parse(stored));
         } else {
-          const newPositions = Array.from({ length: count }).map(() => ({
+          const newPositions = Array.from({ length: effectiveCount }).map(() => ({
             x: Math.random() * (SCREEN_W - 40) + 20,
             y: Math.random() * (SCREEN_H - 100) + 50,
           }));
@@ -52,7 +63,7 @@ export function FloatingParticles({ count = 6, persistenceKey }: FloatingParticl
     };
 
     loadPositions();
-  }, [persistenceKey, count]);
+  }, [persistenceKey, effectiveCount]);
 
   if (!loaded) return null;
 

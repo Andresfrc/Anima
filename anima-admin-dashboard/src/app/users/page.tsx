@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Users, Shield, MoreHorizontal, Search, Loader2, UserCheck, UserX, Clock, Download, EyeOff } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { Users, Shield, MoreHorizontal, Search, Loader2, UserCheck, UserX, Clock, Download, EyeOff, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,9 +35,14 @@ interface AppUser {
   created_at: string
 }
 
+const PAGE_SIZE = 25
+
 export default function UsersPage() {
   const [search, setSearch] = useState("")
   const [users, setUsers] = useState<AppUser[]>([])
+  const [pendingUsers, setPendingUsers] = useState<AppUser[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [roleDialogOpen, setRoleDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
@@ -64,34 +69,56 @@ export default function UsersPage() {
     return `${name.slice(0, 2)}${'*'.repeat(Math.max(name.length - 2, 3))}`;
   };
 
-  const loadUsers = async () => {
+  // Carga paginada server-side (antes traía TODOS los perfiles sin límite).
+  const loadUsers = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    let query = supabase
       .from("profiles")
-      .select("id, email, username, plan, role, created_at")
+      .select("id, email, username, plan, role, created_at", { count: "exact" })
+      .neq("role", "pending") // los pendientes van en su propio banner
       .order("created_at", { ascending: false })
+
+    // Búsqueda server-side. Sanitizamos para no romper/injectar el filtro PostgREST.
+    const q = search.trim().replace(/[,()*%\\]/g, "")
+    if (q) query = query.or(`username.ilike.%${q}%,email.ilike.%${q}%`)
+
+    const { data, error, count } = await query.range(from, to)
     if (error) {
       console.error("Error cargando usuarios:", error.message)
       toast.error("Error cargando usuarios")
     } else {
       setUsers(data ?? [])
+      setTotalCount(count ?? 0)
     }
     setLoading(false)
+  }, [page, search])
+
+  // Los pendientes son pocos; los traemos aparte para el banner de aprobación.
+  const loadPending = useCallback(async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, email, username, plan, role, created_at")
+      .eq("role", "pending")
+      .order("created_at", { ascending: false })
+    setPendingUsers(data ?? [])
+  }, [])
+
+  const refresh = useCallback(() => { loadUsers(); loadPending() }, [loadUsers, loadPending])
+
+  useEffect(() => { loadUsers() }, [loadUsers])
+  useEffect(() => { loadPending() }, [loadPending])
+
+  // Al cambiar la búsqueda volvemos a la primera página (se hace en el onChange
+  // del input, no en un efecto, para evitar renders en cascada).
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setPage(0)
   }
 
-  useEffect(() => { loadUsers() }, [])
-
-  const pendingUsers = users.filter(u => u.role === 'pending')
-  const regularUsers = users.filter(u => u.role !== 'pending')
-
-  const filtered = regularUsers.filter((u) => {
-    const q = search.toLowerCase()
-    return (
-      u.id.toLowerCase().includes(q) ||
-      (u.username ?? "").toLowerCase().includes(q) ||
-      (u.email ?? "").toLowerCase().includes(q)
-    )
-  })
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const handleApproveAdmin = async (user: AppUser) => {
     setIsSaving(true)
@@ -102,7 +129,7 @@ export default function UsersPage() {
       toast.error("Permiso denegado: RLS en Supabase impide esta acción.")
     } else {
       toast.success(`${maskName(user)} ahora es administrador`)
-      await loadUsers()
+      await refresh()
     }
     setIsSaving(false)
   }
@@ -116,7 +143,7 @@ export default function UsersPage() {
       toast.error("Permiso denegado: RLS en Supabase impide esta acción.")
     } else {
       toast.success(`Solicitud rechazada`)
-      await loadUsers()
+      await refresh()
     }
     setIsSaving(false)
   }
@@ -138,7 +165,7 @@ export default function UsersPage() {
     } else {
       toast.success(`Rol cambiado a "${newRole}"`)
       setRoleDialogOpen(false)
-      await loadUsers()
+      await refresh()
     }
     setIsSaving(false)
   }
@@ -151,10 +178,11 @@ export default function UsersPage() {
       toast.error("Permiso denegado: RLS impide esta acción.")
     } else {
       toast.success(`Usuario suspendido`)
-      await loadUsers()
+      await refresh()
     }
   }
 
+  // Exporta la página actualmente cargada (no toda la base, para no agotar memoria).
   const handleExportCSV = () => {
     const headers = ['ID', 'Nombre', 'Email', 'Rol', 'Ruta', 'Registro']
     const rows = users.map(u => [
@@ -272,12 +300,7 @@ export default function UsersPage() {
             <div>
               <CardTitle className="text-xl text-white">Directorio de Usuarios</CardTitle>
               <CardDescription className="text-zinc-400">
-                Total: <span className="text-white font-medium">{regularUsers.length.toLocaleString()}</span>
-                {" · "}
-                <span className="text-indigo-400">{regularUsers.filter(u => u.role === "admin").length} admins</span>
-                {regularUsers.filter(u => u.role === "suspended").length > 0 && (
-                  <> · <span className="text-red-400">{regularUsers.filter(u => u.role === "suspended").length} suspendidos</span></>
-                )}
+                Total: <span className="text-white font-medium">{totalCount.toLocaleString()}</span> usuarios
               </CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
@@ -286,7 +309,7 @@ export default function UsersPage() {
                 placeholder="Buscar por nombre, email o ID..."
                 className="pl-9 bg-black/40 border-white/10 text-white focus-visible:ring-indigo-500/50"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
           </div>
@@ -315,14 +338,14 @@ export default function UsersPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : filtered.length === 0 ? (
+                ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12 text-zinc-500">
                       {search ? "Sin resultados para esa búsqueda." : "No hay usuarios registrados aún."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((user) => (
+                  users.map((user) => (
                     <TableRow key={user.id} className="border-white/5 hover:bg-white/5 transition-colors">
                       <TableCell className="font-mono text-xs text-zinc-400">{shortId(user.id)}</TableCell>
                       <TableCell className="font-medium text-zinc-200">{maskName(user)}</TableCell>
@@ -356,7 +379,7 @@ export default function UsersPage() {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem className="text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 cursor-pointer" onClick={() => {
-                                supabase.from('profiles').update({ role: 'user' }).eq('id', user.id).then(() => { toast.success('Usuario reactivado'); loadUsers(); })
+                                supabase.from('profiles').update({ role: 'user' }).eq('id', user.id).then(() => { toast.success('Usuario reactivado'); refresh(); })
                               }}>
                                 Reactivar Usuario
                               </DropdownMenuItem>
@@ -370,6 +393,34 @@ export default function UsersPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Controles de paginación server-side */}
+          {totalCount > PAGE_SIZE && (
+            <div className="flex items-center justify-between gap-4 pt-4">
+              <p className="text-xs text-zinc-500">
+                Página <span className="text-zinc-300">{page + 1}</span> de{" "}
+                <span className="text-zinc-300">{totalPages}</span>
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost" size="sm"
+                  className="text-zinc-400 hover:text-white disabled:opacity-40"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="ghost" size="sm"
+                  className="text-zinc-400 hover:text-white disabled:opacity-40"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1 || loading}
+                >
+                  Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -8,6 +8,7 @@ import Animated, {
   withDelay,
   Easing,
 } from 'react-native-reanimated';
+import { CURRENT_CONFIG } from '../../utils/devicePerformance';
 
 const { width, height } = Dimensions.get('window');
 
@@ -87,9 +88,15 @@ interface ParticlesBackgroundProps {
 }
 
 export function ParticlesBackground({ count = 15 }: ParticlesBackgroundProps) {
+  // En gama baja (particleEffects=false) no renderizamos partículas; en el resto
+  // acotamos al máximo recomendado por el tier del dispositivo.
+  const maxParticles = CURRENT_CONFIG.particleEffects ? CURRENT_CONFIG.starCount : 0;
+  const effectiveCount = Math.min(count, maxParticles);
+  if (effectiveCount === 0) return null;
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {Array.from({ length: count }).map((_, i) => (
+      {Array.from({ length: effectiveCount }).map((_, i) => (
         <Particle key={i} index={i} />
       ))}
     </View>

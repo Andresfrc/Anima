@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import Animated, { 
-  useSharedValue, useAnimatedStyle, withTiming, withRepeat, 
-  withSequence, Easing, FadeIn, FadeOut 
+import Animated, {
+  useSharedValue, useAnimatedStyle, withTiming, withRepeat,
+  withSequence, Easing, FadeIn, FadeOut, cancelAnimation
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,26 +40,33 @@ export default function RelajacionScreen() {
   const glowOpacity = useSharedValue(0);
   const scaleAnim = useSharedValue(1);
 
+  // Tick: un único intervalo por fase (no se recrea cada segundo). Decrementa
+  // el contador con un updater funcional para no depender de `timeLeft`.
   useEffect(() => {
-    let interval: any;
-    if (phase === 'read' && timeLeft > 0) {
-       interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (phase === 'tense' && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); // Tense heartbeat
-      }, 1000);
-    } else if (phase === 'relax' && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && phase !== 'idle') {
-      handlePhaseComplete();
-    }
+    if (phase === 'idle') return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
     return () => clearInterval(interval);
-  }, [phase, timeLeft]);
+  }, [phase]);
+
+  // Reacción a cada tick: vibración en tensión y avance de fase al llegar a 0.
+  useEffect(() => {
+    if (phase === 'idle') return;
+    if (timeLeft === 0) {
+      handlePhaseComplete();
+    } else if (phase === 'tense') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    // handlePhaseComplete usa estado/funciones estables; omitimos deps extra a propósito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, phase]);
+
+  // Cancela animaciones al desmontar para evitar fugas (withRepeat infinito en 'tense').
+  useEffect(() => () => {
+    cancelAnimation(glowOpacity);
+    cancelAnimation(scaleAnim);
+  }, []);
 
   const handlePhaseComplete = () => {
     if (phase === 'read') {
@@ -120,7 +127,7 @@ export default function RelajacionScreen() {
     <ScreenWrapper style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver" style={[styles.backBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Relajación Progresiva</Text>

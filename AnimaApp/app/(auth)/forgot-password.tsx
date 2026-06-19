@@ -18,6 +18,7 @@ import { GlassCard } from '../../components/ui/GlassCard';
 import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
 import { ParticlesBackground } from '../../components/ui/ParticlesBackground';
 import { supabase } from '../../lib/supabase';
+import { isValidEmail, validatePassword, getPasswordStrength, friendlyAuthError } from '../../utils/validation';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -71,32 +72,21 @@ export default function ForgotPasswordScreen() {
 
   // ── Paso 1: verificar correo + enviar código ──────────────────────────────
   const handleSendCode = async () => {
-    if (!email.includes('@')) {
+    if (!isValidEmail(email)) {
       setError('Ingresa un correo electrónico válido.');
       return;
     }
     setError(null);
     setLoading(true);
     try {
-      // FIX: verificar si el correo está registrado en profiles antes de enviar
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email.trim().toLowerCase())
-        .single();
-
-      if (profileError || !profile) {
-        setError('No encontramos una cuenta con ese correo. Verifica e intenta de nuevo.');
-        return;
-      }
-
-      // Email registrado → enviar código de recuperación
+      // Anti-enumeración: NO consultamos `profiles` para revelar si el correo
+      // existe. Supabase envía el código solo si la cuenta existe, pero nuestra
+      // respuesta es idéntica en ambos casos.
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (resetError) {
-        setError(resetError.message);
+        setError(friendlyAuthError(resetError.message));
         return;
       }
-
       setStep('reset');
     } catch {
       setError('No pudimos enviar el código. Revisa tu conexión e intenta de nuevo.');
@@ -111,8 +101,9 @@ export default function ForgotPasswordScreen() {
       setError('El código de seguridad debe tener entre 6 y 10 dígitos.');
       return;
     }
-    if (password.length < 6) {
-      setError('La nueva contraseña debe tener al menos 6 caracteres.');
+    const pwError = validatePassword(password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     setError(null);
@@ -141,12 +132,7 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const pwStrength = (() => {
-    if (password.length === 0) return { level: 0, label: '', color: '' };
-    if (password.length < 6) return { level: 1, label: 'Muy corta', color: '#E53E3E' };
-    if (password.length < 8) return { level: 2, label: 'Media', color: Colors.accent };
-    return { level: 3, label: 'Fuerte', color: Colors.mint };
-  })();
+  const pwStrength = getPasswordStrength(password);
 
   return (
     <View style={styles.container}>

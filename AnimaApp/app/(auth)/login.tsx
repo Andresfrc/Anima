@@ -16,6 +16,7 @@ import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
 import { ParticlesBackground } from '../../components/ui/ParticlesBackground';
 import { useStore } from '../../store/useStore';
 import { supabase } from '../../lib/supabase';
+import { isValidEmail, friendlyAuthError } from '../../utils/validation';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -55,90 +56,77 @@ export default function LoginScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const login = useStore((s) => s.login);
-  const currentPlan = useStore((s) => s.currentPlan);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-  if (!email.includes("@") || password.length < 6) {
-    alert("Correo o contraseña inválidos");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: password.trim(),
-    });
-
-    if (error) {
-      alert(error.message);
-      setLoading(false);
+    // En login NO exigimos la política nueva de 8 caracteres: usuarios existentes
+    // pueden tener contraseñas más cortas. Solo validamos formato básico; la
+    // verificación real la hace Supabase.
+    if (!isValidEmail(email) || password.length === 0) {
+      setAuthError('Ingresa un correo válido y tu contraseña.');
       return;
     }
 
-    const user = data.user;
+    setAuthError(null);
+    setLoading(true);
 
-    if (!user) {
-      alert("Usuario no encontrado");
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      if (error) {
+        setAuthError(friendlyAuthError(error.message));
+        return;
+      }
+
+      const user = data.user;
+      if (!user) {
+        setAuthError('Correo o contraseña incorrectos.');
+        return;
+      }
+
+      // Obtener nombre, plan y avatar desde profiles
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('username, plan, avatar')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        // No bloqueamos el login por esto; solo lo registramos en dev.
+        console.warn('Profile fetch error:', profileError.message);
+      }
+
+      let username = user.email ? user.email.split('@')[0] : 'Usuario';
+      let fetchedPlan: string | null = null;
+      let fetchedAvatar: string | null = null;
+
+      if (profile) {
+        if (profile.username) username = profile.username;
+        if (profile.plan) fetchedPlan = profile.plan;
+        if (profile.avatar !== undefined && profile.avatar !== null) fetchedAvatar = profile.avatar;
+      }
+
+      // Restauramos estado local ANTES de marcar isAuthenticated.
+      // La navegación la decide exclusivamente el layout raíz (_layout.tsx)
+      // según isAuthenticated + currentPlan, evitando race conditions.
+      if (fetchedPlan) useStore.getState().setPlan(fetchedPlan);
+      if (fetchedAvatar !== null) useStore.getState().setProfileAvatar(fetchedAvatar);
+
+      login(user.email || '', username);
+      // No navegamos aquí: el layout raíz redirige automáticamente.
+    } catch (err: any) {
+      setAuthError(friendlyAuthError(err?.message));
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // obtener nombre y plan y avatar desde profiles
-    const { data: profile, error: profileError } = await supabase
-  .from("profiles")
-  .select("username, plan, avatar")
-  .eq("id", user.id)
-  .single();
-
-if (profileError && profileError.code === "PGRST204") {
-  // PGRST204 is typical column not found or relation error in PostgREST
-  alert("Aviso para Backend: Faltan las columnas 'plan' y 'avatar' en la tabla 'profiles'. El progreso local no se puede recuperar.");
-} else if (profileError) {
-  console.warn("Profile fetch error:", profileError);
-}
-
-let username = user.email ? user.email.split("@")[0] : "Usuario";
-let fetchedPlan = null;
-let fetchedAvatar = null;
-
-if (profile) {
-  if (profile.username) username = profile.username;
-  if (profile.plan) fetchedPlan = profile.plan;
-  if (profile.avatar !== undefined && profile.avatar !== null) fetchedAvatar = profile.avatar;
-}
-
-// RESTAURAR ESTADOS LOCALES DEPENDIENTES DE LAYOUT ANTES DEL LOGIN
-// Porque `login` cambia `isAuthenticated` a true, lo que dispara la verificación en _layout.tsx
-if (fetchedPlan) {
-  useStore.getState().setPlan(fetchedPlan);
-}
-if (fetchedAvatar !== null) {
-  useStore.getState().setProfileAvatar(fetchedAvatar);
-}
-
-login(user.email || "", username);
-
-const planToUse = fetchedPlan || currentPlan;
-
-    if (!planToUse) {
-      router.replace('/(onboarding)/select-plan');
-    } else {
-      router.replace('/(tabs)');
-    }
-
-  } catch (err) {
-    console.log(err);
-    alert("Error al iniciar sesión");
-  }
-
-  setLoading(false);
-};
+  };
 
   return (
     <View style={styles.container}>
@@ -223,9 +211,11 @@ const planToUse = fetchedPlan || currentPlan;
                     placeholder="Correo electrónico"
                     placeholderTextColor={colors.textLight}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(t) => { setEmail(t); setAuthError(null); }}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoComplete="email"
+                    accessibilityLabel="Correo electrónico"
                   />
                 </View>
 
@@ -243,10 +233,18 @@ const planToUse = fetchedPlan || currentPlan;
                     placeholder="Contraseña"
                     placeholderTextColor={colors.textLight}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(t) => { setPassword(t); setAuthError(null); }}
                     secureTextEntry={!showPassword}
+                    autoComplete="password"
+                    accessibilityLabel="Contraseña"
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
                     <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textLight} />
                   </Pressable>
                 </View>
@@ -254,6 +252,13 @@ const planToUse = fetchedPlan || currentPlan;
                 <Pressable style={styles.forgotLink} onPress={() => router.push('/(auth)/forgot-password')}>
                   <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
                 </Pressable>
+
+                {authError && (
+                  <Animated.View entering={FadeIn.duration(250)} style={styles.errorWrap}>
+                    <Ionicons name="alert-circle-outline" size={15} color="#EF4444" />
+                    <Text style={styles.errorText}>{authError}</Text>
+                  </Animated.View>
+                )}
 
                 <PremiumButton
                   title="Iniciar Sesión"
@@ -341,6 +346,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
   },
   eyeBtn: { padding: 4 },
+  errorWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
+  },
+  errorText: { flex: 1, fontSize: 12, color: '#EF4444', fontFamily: 'Poppins_400Regular' },
   forgotLink: { alignSelf: 'flex-end', marginBottom: 8 },
   forgotText: {
     fontSize: 13, color: Colors.primary, fontFamily: 'Poppins_500Medium',

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeOut, Easing, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, withDelay, interpolate } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, Easing, useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence, withDelay, interpolate, cancelAnimation } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../hooks/useTheme';
@@ -38,6 +38,14 @@ export default function BotellaScreen() {
   const recvBottleY = useSharedValue(100);
   const recvBottleOpacity = useSharedValue(0);
 
+  // Guardamos los timeouts en curso para cancelarlos al desmontar y evitar
+  // setState sobre un componente desmontado si el usuario sale durante la secuencia.
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const schedule = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    timeoutsRef.current.push(id);
+  };
+
   useEffect(() => {
     // Gentle ocean waves
     waveOffset.value = withRepeat(
@@ -48,39 +56,48 @@ export default function BotellaScreen() {
       -1,
       true
     );
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
+      cancelAnimation(waveOffset);
+      cancelAnimation(bottleY);
+      cancelAnimation(bottleOpacity);
+      cancelAnimation(bottleScale);
+      cancelAnimation(recvBottleY);
+      cancelAnimation(recvBottleOpacity);
+    };
   }, []);
 
   const handleSend = () => {
     if (!text.trim()) return;
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     setPhase('sending');
-    
+
     // Animate bottle throwing out to sea
     bottleY.value = withTiming(-150, { duration: 2000, easing: Easing.out(Easing.cubic) });
     bottleOpacity.value = withTiming(0, { duration: 2000, easing: Easing.ease });
     bottleScale.value = withTiming(0.2, { duration: 2000, easing: Easing.ease });
 
-    setTimeout(() => {
+    schedule(() => {
       setPhase('waiting');
-      
+
       // Simulate waiting for the ocean to return a bottle (Network delay mock)
-      setTimeout(() => {
+      schedule(() => {
         // Pick random response
         const randomMsg = COMMUNITY_MESSAGES[Math.floor(Math.random() * COMMUNITY_MESSAGES.length)];
         setReceivedMessage(randomMsg);
-        
+
         // Animate new bottle coming in
         recvBottleY.value = withTiming(0, { duration: 2000, easing: Easing.out(Easing.cubic) });
         recvBottleOpacity.value = withTiming(1, { duration: 2000, easing: Easing.ease });
-        
-        setTimeout(() => {
+
+        schedule(() => {
           setPhase('received');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }, 2000);
       }, 3000);
-      
     }, 2000);
   };
 
@@ -117,7 +134,7 @@ export default function BotellaScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Mensaje en una Botella</Text>

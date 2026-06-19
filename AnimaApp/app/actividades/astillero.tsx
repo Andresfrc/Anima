@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard, Animated as RNAnimated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeOut, Easing, useSharedValue, useAnimatedStyle, withTiming, withSpring, interpolate } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, Easing, useSharedValue, useAnimatedStyle, withTiming, withSpring, interpolate, cancelAnimation } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../hooks/useTheme';
@@ -25,12 +25,23 @@ export default function AstilleroScreen() {
   // Reanimated value for the boat's horizontal progress (0 to 1)
   const boatProgress = useSharedValue(0);
 
+  // Timeout de la celebración: lo guardamos para cancelarlo si el usuario sale
+  // antes de que dispare (evita setState sobre componente desmontado).
+  const celebrationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (celebrationTimeout.current) clearTimeout(celebrationTimeout.current);
+      cancelAnimation(boatProgress);
+    };
+  }, []);
+
   const handleSubmit = () => {
     if (!text.trim()) return;
-    
+
     Keyboard.dismiss();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
+
     // Add to list
     setVictories(prev => [text.trim(), ...prev]);
     setText('');
@@ -40,7 +51,7 @@ export default function AstilleroScreen() {
     boatProgress.value = withSpring(newProgress, { damping: 15, stiffness: 90 });
 
     if (newProgress >= 0.99 && !showCelebration) {
-      setTimeout(() => {
+      celebrationTimeout.current = setTimeout(() => {
         useStore.getState().addCompletedActivity('Astillero de Victorias', 'astillero');
         setShowCelebration(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -77,7 +88,7 @@ export default function AstilleroScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Astillero de Victorias</Text>

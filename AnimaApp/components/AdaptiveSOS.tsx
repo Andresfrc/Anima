@@ -5,9 +5,11 @@ import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 're
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import * as Localization from 'expo-localization';
 import { useTheme } from '../hooks/useTheme';
 import { useStore } from '../store/useStore';
 import { EMOTIONAL_ROUTES } from '../constants/clinicalContent';
+import { getCrisisLinesForRegion, INTERNATIONAL_DIRECTORY_URL } from '../constants/crisisLines';
 import { Gradients } from '../constants/theme';
 import { BlurView } from 'expo-blur';
 import { GlassCard, JewelButton } from './ui';
@@ -21,6 +23,22 @@ export function AdaptiveSOSButton() {
   const [modalVisible, setModalVisible] = useState(false);
 
   const routeColor = EMOTIONAL_ROUTES.find(r => r.id === currentPlan)?.color || colors.primary;
+
+  // Líneas de crisis según la región del dispositivo (fallback internacional seguro).
+  const crisisInfo = React.useMemo(() => {
+    const region = Localization.getLocales?.()[0]?.regionCode ?? null;
+    return getCrisisLinesForRegion(region);
+  }, []);
+
+  const dialNumber = (num: string, intensity: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Heavy) => {
+    Haptics.impactAsync(intensity);
+    Linking.openURL(`tel:${num}`).catch(() => {});
+  };
+
+  const openDirectory = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Linking.openURL(INTERNATIONAL_DIRECTORY_URL).catch(() => {});
+  };
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -159,13 +177,16 @@ export function AdaptiveSOSButton() {
 
   return (
     <>
-      <Pressable 
+      <Pressable
         style={({ pressed }) => [
           styles.sosButton,
           { backgroundColor: routeColor, shadowColor: routeColor },
           pressed && { transform: [{ scale: 0.95 }], opacity: 0.9 }
         ]}
         onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel="Ayuda SOS"
+        accessibilityHint="Abre herramientas de apoyo inmediato y líneas de crisis"
       >
         <Ionicons name="medical" size={28} color="#FFF" />
       </Pressable>
@@ -203,34 +224,56 @@ export function AdaptiveSOSButton() {
             
             {renderSOSContent()}
 
-            {/* ── Crisis Lines (always visible) ── */}
+            {/* ── Crisis Lines (localizadas por región) ── */}
             <View style={[styles.crisisSection, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]}>
               <Text style={[styles.crisisTitle, { color: colors.textLight }]}>Si necesitas ayuda profesional ahora</Text>
-              
-              <Pressable
-                style={[styles.crisisLine, { backgroundColor: '#EF4444' + '12' }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); Linking.openURL('tel:106'); }}
-              >
-                <View style={[styles.crisisIconWrap, { backgroundColor: '#EF4444' + '20' }]}>
-                  <Ionicons name="call" size={18} color="#EF4444" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.crisisName, { color: colors.textPrimary }]}>Línea 106</Text>
-                  <Text style={[styles.crisisDesc, { color: colors.textLight }]}>Salud mental • Gratuita • 24/7</Text>
-                </View>
-                <Ionicons name="arrow-forward" size={16} color="#EF4444" />
-              </Pressable>
+
+              {crisisInfo.mentalHealth ? (
+                <Pressable
+                  style={[styles.crisisLine, { backgroundColor: '#EF4444' + '12' }]}
+                  onPress={() => dialNumber(crisisInfo.mentalHealth!.dial)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Llamar a ${crisisInfo.mentalHealth.name}, línea de salud mental`}
+                >
+                  <View style={[styles.crisisIconWrap, { backgroundColor: '#EF4444' + '20' }]}>
+                    <Ionicons name="call" size={18} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.crisisName, { color: colors.textPrimary }]}>{crisisInfo.mentalHealth.name}</Text>
+                    <Text style={[styles.crisisDesc, { color: colors.textLight }]}>{crisisInfo.mentalHealth.desc}</Text>
+                  </View>
+                  <Ionicons name="call" size={16} color="#EF4444" />
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[styles.crisisLine, { backgroundColor: '#EF4444' + '12' }]}
+                  onPress={openDirectory}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir directorio internacional de líneas de ayuda"
+                >
+                  <View style={[styles.crisisIconWrap, { backgroundColor: '#EF4444' + '20' }]}>
+                    <Ionicons name="globe-outline" size={18} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.crisisName, { color: colors.textPrimary }]}>Buscar línea de ayuda</Text>
+                    <Text style={[styles.crisisDesc, { color: colors.textLight }]}>Directorio internacional por país</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color="#EF4444" />
+                </Pressable>
+              )}
 
               <Pressable
                 style={[styles.crisisLine, { backgroundColor: colors.primary + '08' }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Linking.openURL('tel:123'); }}
+                onPress={() => dialNumber(crisisInfo.emergency.dial, Haptics.ImpactFeedbackStyle.Medium)}
+                accessibilityRole="button"
+                accessibilityLabel={`Llamar a ${crisisInfo.emergency.name}, emergencias`}
               >
                 <View style={[styles.crisisIconWrap, { backgroundColor: colors.primary + '15' }]}>
                   <Ionicons name="shield-checkmark" size={18} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.crisisName, { color: colors.textPrimary }]}>Línea 123</Text>
-                  <Text style={[styles.crisisDesc, { color: colors.textLight }]}>Emergencias • Nacional</Text>
+                  <Text style={[styles.crisisName, { color: colors.textPrimary }]}>{crisisInfo.emergency.name}</Text>
+                  <Text style={[styles.crisisDesc, { color: colors.textLight }]}>{crisisInfo.emergency.desc}</Text>
                 </View>
                 <Ionicons name="arrow-forward" size={16} color={colors.primary} />
               </Pressable>

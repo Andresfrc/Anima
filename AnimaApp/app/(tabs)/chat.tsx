@@ -12,6 +12,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { ChatBubble, TypingIndicator, GlassCard, Mascot } from '../../components/ui';
 import { useStore } from '../../store/useStore';
 import { getAvatarSource } from '../../constants/avatars';
+import { pingChatServer } from '../../services/ChatEngine';
 
 const mascotAvatar = require('../../assets/images/mascot/lumi-empatico.png');
 
@@ -45,22 +46,10 @@ export default function ChatScreen() {
     };
   }, []);
 
-  // 🔥 PING para mantener el servidor despierto
+  // Warm-up del servidor: una sola vez al entrar al chat (sin intervalo).
+  // Antes se hacía un ping cada 10 min desde CADA dispositivo, drenando batería.
   useEffect(() => {
-    const API_URL = 'https://chatbot-lumi.onrender.com';
-    
-    const ping = async () => {
-      try {
-        await fetch(`${API_URL}/health`, { method: 'GET' });
-        console.log('🔥 Ping a Lumi enviado');
-      } catch (e) {
-        // Silencioso
-      }
-    };
-
-    ping();
-    const interval = setInterval(ping, 600000);
-    return () => clearInterval(interval);
+    pingChatServer();
   }, []);
 
   const chatConfig = React.useMemo(() => {
@@ -218,7 +207,7 @@ export default function ChatScreen() {
             returnKeyType="send"
             multiline
           />
-          <Pressable onPress={handleSend} style={styles.sendBtn}>
+          <Pressable onPress={handleSend} style={styles.sendBtn} accessibilityRole="button" accessibilityLabel="Enviar mensaje">
             <LinearGradient colors={[...Gradients.jewel]} style={styles.sendGradient}>
               <Ionicons name="send" size={18} color="#FFF" />
             </LinearGradient>

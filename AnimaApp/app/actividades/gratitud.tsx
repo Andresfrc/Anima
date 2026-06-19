@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -295,6 +295,17 @@ export default function GratitudeJournalScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [showXPGain, setShowXPGain] = useState(false);
 
+  // Cada FloatingStar mantiene 2 animaciones infinitas; acotamos cuántas se
+  // renderizan a la vez para no degradar FPS/batería con diarios muy largos.
+  const MAX_VISIBLE_STARS = 40;
+  const visibleEntries = journalEntries.slice(0, MAX_VISIBLE_STARS);
+
+  // Timeout del feedback de XP: cancelable al desmontar.
+  const xpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (xpTimeoutRef.current) clearTimeout(xpTimeoutRef.current);
+  }, []);
+
   // ── Cargar entradas desde Supabase al montar ──────────────────────────────
   useEffect(() => {
     const loadEntries = async () => {
@@ -342,7 +353,7 @@ export default function GratitudeJournalScreen() {
     addJournalEntry(newItem); // guarda en store local
     setInputText('');
     setShowXPGain(true);
-    setTimeout(() => {
+    xpTimeoutRef.current = setTimeout(() => {
       setShowXPGain(false);
       setShowInput(false);
     }, 1200);
@@ -402,7 +413,7 @@ export default function GratitudeJournalScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Volver">
               <View style={[
                 styles.backBtnInner,
                 {
@@ -449,7 +460,7 @@ export default function GratitudeJournalScreen() {
               </View>
             )}
 
-            {journalEntries.map((entry, idx) => (
+            {visibleEntries.map((entry, idx) => (
               <FloatingStar
                 key={entry.id} entry={entry} index={idx}
                 containerWidth={skySize.width} containerHeight={skySize.height}

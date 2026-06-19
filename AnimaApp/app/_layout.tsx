@@ -1,3 +1,4 @@
+import '../utils/silenceLogs'; // Silencia console.log/info/debug en producción (primer efecto).
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, AppState, LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,6 +18,7 @@ LogBox.ignoreLogs(['expo-notifications: Android Push notifications', 'Failed to 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 import { ThemeProvider } from '../context/ThemeContext';
 import { RootBackground } from '../components/RootBackground';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 function AppLayout() {
   const [showSplash, setShowSplash] = useState(true);
@@ -123,10 +125,12 @@ function AppLayout() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootBackground>
-        <AppLayout />
-      </RootBackground>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <RootBackground>
+          <AppLayout />
+        </RootBackground>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
