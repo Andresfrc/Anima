@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
+import { supabase, clearAdminAuthState } from '@/lib/supabase';
 
 // ---- Types ----
 export interface AdminProfile {
@@ -72,7 +72,25 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   fetchAdminProfile: async () => {
     console.log('[ADMIN] Cargando perfil...');
     set({ isLoadingProfile: true });
-    const { data: { user } } = await supabase.auth.getUser();
+
+    // getUser() puede lanzar "Invalid Refresh Token" si la sesión almacenada
+    // está corrupta o caducada. Lo capturamos para no romper y auto-limpiar.
+    let user = null;
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      user = data.user;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
+      if (msg.includes('refresh token') || msg.includes('not authenticated') || msg.includes('session')) {
+        await supabase.auth.signOut().catch(() => {});
+        clearAdminAuthState();
+      }
+      console.warn('[ADMIN] Sesión inválida, limpiando estado');
+      set({ isLoadingProfile: false, adminProfile: null });
+      return;
+    }
+
     if (!user) { console.warn('[ADMIN] No hay usuario autenticado'); set({ isLoadingProfile: false }); return; }
 
     const { data, error } = await supabase

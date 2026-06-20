@@ -23,3 +23,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
 });
+
+// Auto-recuperación de sesiones corruptas.
+// Si supabase-js detecta un refresh token ausente/caducado, cierra la sesión y
+// emite SIGNED_OUT; limpiamos el almacenamiento para que el error
+// "Invalid Refresh Token: Refresh Token Not Found" no se repita en cada carga.
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') clearAdminAuthState();
+  });
+}
