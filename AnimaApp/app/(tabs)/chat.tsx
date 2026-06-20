@@ -14,7 +14,7 @@ import { useStore } from '../../store/useStore';
 import { getAvatarSource } from '../../constants/avatars';
 import { pingChatServer } from '../../services/ChatEngine';
 
-const mascotAvatar = require('../../assets/images/mascot/lumi-empatico.png');
+const mascotAvatar = require('../../assets/images/mascot/lumi-chat.png');
 
 export default function ChatScreen() {
   const { colors, isDark } = useTheme();

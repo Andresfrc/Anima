@@ -34,6 +34,19 @@ export interface CountryCrisisInfo {
  */
 export const INTERNATIONAL_DIRECTORY_URL = 'https://findahelpline.com';
 
+/**
+ * Países con líneas verificadas, para el selector manual del SOS.
+ * (Si el país del dispositivo no es el real, el usuario puede fijarlo aquí.)
+ */
+export const SUPPORTED_REGIONS: { code: string; label: string }[] = [
+  { code: 'CO', label: 'Colombia' },
+  { code: 'MX', label: 'México' },
+  { code: 'AR', label: 'Argentina' },
+  { code: 'CL', label: 'Chile' },
+  { code: 'ES', label: 'España' },
+  { code: 'US', label: 'EE. UU.' },
+];
+
 const DIRECTORY: Record<string, CountryCrisisInfo> = {
   CO: {
     mentalHealth: { name: 'Línea 106', dial: '106', desc: 'Salud mental • Gratuita • 24/7' },

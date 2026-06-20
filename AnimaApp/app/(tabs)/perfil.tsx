@@ -15,6 +15,7 @@ import { CLINICAL_DISCLAIMER } from '../../constants/clinicalContent';
 import { AVATAR_CATEGORIES, getAvatarSource, AvatarItem } from '../../constants/avatars';
 import { getCurrentLevel, getNextLevel, getLevelProgress, ROUTE_PROGRESSIONS } from '../../constants/progressionSystem';
 import { FAQ_ITEMS, SUPPORT_EMAIL } from '../../constants/faq';
+import { getStreak } from '../../utils/streak';
 import { supabase } from '../../lib/supabase';
 
 // Enlace público de invitación (landing con OpenGraph en /docs → GitHub Pages).
@@ -43,7 +44,6 @@ export default function PerfilScreen() {
   const currentPlan = useStore((s) => s.currentPlan);
   const activeTitle = useStore((s) => s.activeTitle);
   const unlockedTitles = useStore((s) => s.unlockedTitles);
-  const currentStreak = useStore((s) => s.currentStreak);
   const setActiveTitle = useStore((s) => s.setActiveTitle);
   const activeSound = useStore((s) => s.activeSound);
   const activeLumiVariant = useStore((s) => s.activeLumiVariant);
@@ -221,6 +221,9 @@ export default function PerfilScreen() {
   const progressPct = useMemo(() => getLevelProgress(plan, userXP), [plan, userXP]);
   const routeColor = progression?.color || colors.primary;
   const isMaxLevel = !nextLevel;
+
+  // Racha derivada del historial real (misma fuente que la pantalla de Progreso).
+  const streak = useMemo(() => getStreak(moodHistory), [moodHistory]);
 
   const activeTitleName = useMemo(() => {
     if (!activeTitle) return null;
@@ -428,10 +431,10 @@ export default function PerfilScreen() {
                 <Text style={{ fontSize: 15, fontFamily: 'Poppins_700Bold', color: colors.textPrimary }}>Lv.{currentLevel.level} — {currentLevel.title}</Text>
                 <Text style={{ fontSize: 12, fontFamily: 'Poppins_400Regular', color: colors.textLight }}>Ruta {progression?.routeName} {progression?.emoji}</Text>
               </View>
-              {currentStreak > 0 && (
+              {streak > 0 && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F97316' + '15', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 }}>
                   <Ionicons name="flame" size={14} color="#F97316" />
-                  <Text style={{ fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#F97316' }}>{currentStreak}</Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'Poppins_700Bold', color: '#F97316' }}>{streak}</Text>
                 </View>
               )}
             </View>

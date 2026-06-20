@@ -63,7 +63,7 @@ export default function DashboardOverview() {
 
          <div className="relative w-32 h-32 md:w-40 md:h-40 shrink-0 rounded-full bg-gradient-to-tr from-indigo-500/20 to-pink-500/20 p-1 shadow-[0_0_30px_rgba(168,85,247,0.3)] hover:scale-105 transition-transform duration-700">
             <div className="w-full h-full relative rounded-full overflow-hidden bg-black/60 border border-white/10">
-               <Image src="/assets/Lumi-admin.png" alt="Lumi AI Companion" fill unoptimized={true} className="object-cover scale-[1.15]" />
+               <Image src="/assets/mascot/lumi-dashboard.png" alt="Lumi AI Companion" fill unoptimized={true} className="object-cover scale-[1.15]" />
             </div>
          </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, Dimensions, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, Dimensions, Linking, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -9,7 +9,7 @@ import * as Localization from 'expo-localization';
 import { useTheme } from '../hooks/useTheme';
 import { useStore } from '../store/useStore';
 import { EMOTIONAL_ROUTES } from '../constants/clinicalContent';
-import { getCrisisLinesForRegion, INTERNATIONAL_DIRECTORY_URL } from '../constants/crisisLines';
+import { getCrisisLinesForRegion, INTERNATIONAL_DIRECTORY_URL, SUPPORTED_REGIONS } from '../constants/crisisLines';
 import { Gradients } from '../constants/theme';
 import { BlurView } from 'expo-blur';
 import { GlassCard, JewelButton } from './ui';
@@ -20,15 +20,17 @@ export function AdaptiveSOSButton() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const currentPlan = useStore(s => s.currentPlan);
+  const crisisRegion = useStore(s => s.crisisRegion);
+  const setCrisisRegion = useStore(s => s.setCrisisRegion);
   const [modalVisible, setModalVisible] = useState(false);
 
   const routeColor = EMOTIONAL_ROUTES.find(r => r.id === currentPlan)?.color || colors.primary;
 
-  // Líneas de crisis según la región del dispositivo (fallback internacional seguro).
-  const crisisInfo = React.useMemo(() => {
-    const region = Localization.getLocales?.()[0]?.regionCode ?? null;
-    return getCrisisLinesForRegion(region);
-  }, []);
+  // Región del dispositivo (NO usa GPS; lee el país configurado en el SO).
+  const detectedRegion = React.useMemo(() => Localization.getLocales?.()[0]?.regionCode ?? null, []);
+  // Si el usuario fijó un país manualmente, ese manda; si no, autodetecta.
+  const effectiveRegion = crisisRegion ?? detectedRegion;
+  const crisisInfo = React.useMemo(() => getCrisisLinesForRegion(effectiveRegion), [effectiveRegion]);
 
   const dialNumber = (num: string, intensity: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Heavy) => {
     Haptics.impactAsync(intensity);
@@ -228,6 +230,35 @@ export function AdaptiveSOSButton() {
             <View style={[styles.crisisSection, { borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]}>
               <Text style={[styles.crisisTitle, { color: colors.textLight }]}>Si necesitas ayuda profesional ahora</Text>
 
+              {/* Selector de país (por si el país del dispositivo no es el real) */}
+              <View style={styles.regionRow}>
+                <Ionicons name="location-outline" size={13} color={colors.textLight} />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionScroll}>
+                  <Pressable
+                    onPress={() => setCrisisRegion(null)}
+                    style={[styles.regionChip, { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }, !crisisRegion && { backgroundColor: routeColor + '22', borderColor: routeColor }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Detectar país automáticamente"
+                  >
+                    <Text style={[styles.regionChipText, { color: !crisisRegion ? routeColor : colors.textLight }]}>Auto</Text>
+                  </Pressable>
+                  {SUPPORTED_REGIONS.map((r) => {
+                    const active = crisisRegion === r.code;
+                    return (
+                      <Pressable
+                        key={r.code}
+                        onPress={() => setCrisisRegion(r.code)}
+                        style={[styles.regionChip, { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }, active && { backgroundColor: routeColor + '22', borderColor: routeColor }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Usar líneas de ${r.label}`}
+                      >
+                        <Text style={[styles.regionChipText, { color: active ? routeColor : colors.textLight }]}>{r.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
               {crisisInfo.mentalHealth ? (
                 <Pressable
                   style={[styles.crisisLine, { backgroundColor: '#EF4444' + '12' }]}
@@ -392,6 +423,14 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: 'Poppins_600SemiBold', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 12, textAlign: 'center',
   },
+  regionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12,
+  },
+  regionScroll: { gap: 6, paddingRight: 8, alignItems: 'center' },
+  regionChip: {
+    paddingVertical: 5, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1,
+  },
+  regionChipText: { fontSize: 12, fontFamily: 'Poppins_500Medium' },
   crisisLine: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 12, borderRadius: 14, marginBottom: 8,

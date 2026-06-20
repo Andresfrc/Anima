@@ -19,33 +19,11 @@ import { useRouter } from 'expo-router';
 import { getCurrentLevel, getNextLevel, getLevelProgress, ROUTE_PROGRESSIONS, getAllRewards } from '../../constants/progressionSystem';
 import { supabase } from '../../lib/supabase';
 import { saveMoodToSupabase } from '../../utils/supabaseSync';
+import { getStreak } from '../../utils/streak';
 
 // ============================================================
 // HELPERS
 // ============================================================
-
-function getStreak(history: { date: string }[]): number {
-  if (history.length === 0) return 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const uniqueDays = [...new Set(
-    history.map(e => {
-      const d = new Date(e.date);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    })
-  )].sort((a, b) => b - a);
-  const mostRecent = uniqueDays[0];
-  const diffFromToday = Math.floor((today.getTime() - mostRecent) / 86400000);
-  if (diffFromToday > 1) return 0;
-  let streak = 1;
-  for (let i = 1; i < uniqueDays.length; i++) {
-    const diff = Math.floor((uniqueDays[i - 1] - uniqueDays[i]) / 86400000);
-    if (diff === 1) streak++;
-    else break;
-  }
-  return streak;
-}
 
 function getEmotionalInsight(
   moodHistory: { mood: string; date: string }[],

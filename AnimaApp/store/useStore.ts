@@ -33,6 +33,7 @@ import { getBotResponse } from '../services/ChatEngine';
 import { MoodType } from '../constants/theme';
 import { DEFAULT_ACTIVITIES } from '../constants/activities';
 import { XP_EVENTS, getCurrentLevel, RouteLevel } from '../constants/progressionSystem';
+import { getStreak } from '../utils/streak';
 import { supabase } from '../lib/supabase';
 
 // Re-export MoodType desde la fuente única para compatibilidad con imports existentes
@@ -79,7 +80,10 @@ interface AppState {
   profileAvatar: string | null;
   showSplash: boolean;
   notificationsEnabled: boolean;
-  
+  // País fijado manualmente para las líneas de crisis del SOS (null = autodetectar)
+  crisisRegion: string | null;
+  setCrisisRegion: (region: string | null) => void;
+
   // Hydration — true cuando el store terminó de leerse desde AsyncStorage
   _hasHydrated: boolean;
   setHasHydrated: (val: boolean) => void;
@@ -222,6 +226,7 @@ export const useStore = create<AppState>()(
         profileAvatar: null,
         showSplash: true,
         notificationsEnabled: true,
+        crisisRegion: null,
 
         // Plan
         currentPlan: null,
@@ -281,6 +286,7 @@ export const useStore = create<AppState>()(
             NotificationService.cancelAllScheduledNotifications();
           }
         },
+        setCrisisRegion: (region) => set({ crisisRegion: region }),
         setPlan: (planId) => set({ currentPlan: planId }),
         setRecommendedPlan: (planId) => set({ recommendedPlan: planId }),
         setMood: (mood) => set({ currentMood: mood }),
@@ -309,31 +315,22 @@ export const useStore = create<AppState>()(
           const newXP = oldXP + XP_EVENTS.mood.amount;
           const today = new Date().toISOString().split('T')[0];
 
-          // Streak calculation
-          const { lastActiveDate, currentStreak } = get();
-          let newStreak = currentStreak;
+          // Streak: se DERIVA del historial real (fuente única, ver utils/streak.ts).
+          // Así el valor guardado coincide siempre con lo que muestran Perfil y Progreso.
+          const updatedHistory = [newEntry, ...moodHistory];
+          const { lastActiveDate, currentStreak: oldStreak } = get();
+          const newStreak = getStreak(updatedHistory);
+
           let bonusXP = 0;
-          if (lastActiveDate) {
-            const lastDate = new Date(lastActiveDate);
-            const todayDate = new Date(today);
-            const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffDays === 1) {
-              newStreak = currentStreak + 1;
-              if (newStreak === 3) bonusXP = XP_EVENTS.streak.amount; // +50 at 3-day streak
-            } else if (diffDays >= 3) {
-              bonusXP = XP_EVENTS.comeback.amount; // +30 comeback
-              newStreak = 1;
-            } else if (diffDays === 0) {
-              // Same day, no streak change
-            } else {
-              newStreak = 1; // Reset streak (missed 1 day)
-            }
-          } else {
-            newStreak = 1;
+          if (newStreak === 3 && oldStreak < 3) {
+            bonusXP = XP_EVENTS.streak.amount; // +50 al alcanzar 3 días seguidos
+          } else if (lastActiveDate) {
+            const diffDays = Math.floor((new Date(today).getTime() - new Date(lastActiveDate).getTime()) / 86400000);
+            if (diffDays >= 3) bonusXP = XP_EVENTS.comeback.amount; // +30 al volver tras inactividad
           }
 
           set({
-            moodHistory: [newEntry, ...moodHistory],
+            moodHistory: updatedHistory,
             currentMood: null,
             weeklyMoodData: newWeekly,
             userXP: newXP + bonusXP,
@@ -550,6 +547,7 @@ export const useStore = create<AppState>()(
         userEmail: state.userEmail,
         profileAvatar: state.profileAvatar,
         notificationsEnabled: state.notificationsEnabled,
+        crisisRegion: state.crisisRegion,
         currentPlan: state.currentPlan,
         recommendedPlan: state.recommendedPlan,
         moodHistory: state.moodHistory,

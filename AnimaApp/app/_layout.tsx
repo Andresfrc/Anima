@@ -57,18 +57,16 @@ function AppLayout() {
     }
   }, [showSplash, hasHydrated, isAuthenticated, currentPlan]);
 
-  // Initialize notifications
+  // Initialize notifications — recordatorios diarios personalizados según la ruta.
   useEffect(() => {
     if (notificationsEnabled && isAuthenticated) {
       NotificationService.requestPermissionsAsync().then((granted) => {
         if (granted) {
-          NotificationService.scheduleMorningQuote('Tu cuerpo y mente merecen un momento de paz hoy.');
-          NotificationService.scheduleEveningJournal();
-          NotificationService.scheduleInactivityReminder();
+          NotificationService.scheduleDailyReminders(currentPlan);
         }
       });
     }
-  }, [notificationsEnabled, isAuthenticated]);
+  }, [notificationsEnabled, isAuthenticated, currentPlan]);
 
   // Handle AppState to reset inactivity reminder
   useEffect(() => {

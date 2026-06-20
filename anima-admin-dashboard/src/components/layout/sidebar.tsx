@@ -40,7 +40,7 @@ export function Sidebar() {
       <div className="py-6 px-4 flex items-center gap-3">
         <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-[2px] animate-[pulse_3s_ease-in-out_infinite] shadow-[0_0_15px_rgba(168,85,247,0.5)] shrink-0">
           <div className="w-full h-full bg-black rounded-full overflow-hidden flex items-center justify-center relative">
-            <Image src="/assets/lumi-adimin2.png" alt="Lumi AI" fill unoptimized={true} className="object-cover opacity-90 mix-blend-screen" />
+            <Image src="/assets/mascot/lumi-nav.png" alt="Lumi AI" fill unoptimized={true} className="object-cover opacity-90 mix-blend-screen" />
           </div>
         </div>
         <div className="flex flex-col">

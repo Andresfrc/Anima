@@ -14,12 +14,9 @@ import { EMOTIONAL_ROUTES } from '../../constants/clinicalContent';
 import { getAvatarSource } from '../../constants/avatars';
 import { supabase } from '../../lib/supabase';
 import { syncUserDataFromSupabase, saveMoodToSupabase } from '../../utils/supabaseSync';
-import { ROUTE_PROGRESSIONS } from '../../constants/progressionSystem';
-
-const NOTIFICATIONS_MOCK = [
-  { id: '1', title: '¡Bienvenido a Anima!', desc: 'Nos alegra tenerte aquí. Recuerda revisar tu plan diario.', time: 'Hace 2h' },
-  { id: '2', title: 'Tiempo de Pausa', desc: 'Tomarse 5 minutos para respirar ayuda mucho.', time: 'Hace 5h' },
-];
+import { ROUTE_PROGRESSIONS, getNextLevel } from '../../constants/progressionSystem';
+import { getStreak } from '../../utils/streak';
+import { buildHomeNotifications } from '../../utils/homeNotifications';
 
 function getLocalToday(): string {
   const d = new Date();
@@ -57,6 +54,7 @@ export default function HomeScreen() {
   const weeklyMoodData = useStore((s) => s.weeklyMoodData);
   const currentPlan = useStore((s) => s.currentPlan);
   const moodHistory = useStore((s) => s.moodHistory);
+  const userXP = useStore((s) => s.userXP);
   const profileAvatar = useStore((s) => s.profileAvatar);
   const avatarSource = getAvatarSource(profileAvatar);
   const activeTitle = useStore((s) => s.activeTitle);
@@ -284,6 +282,20 @@ export default function HomeScreen() {
     return 'Buenas noches';
   }, []);
 
+  // Notificaciones del Home generadas del estado real del usuario (no mock).
+  const notifications = useMemo(() => {
+    const next = getNextLevel(currentPlan || 'balance', userXP);
+    const xpToNext = next ? Math.max(next.xpRequired - userXP, 0) : null;
+    return buildHomeNotifications({
+      userName,
+      isNewUser: moodHistory.length === 0,
+      moodLoggedToday: alreadyLoggedMoodToday,
+      streak: getStreak(moodHistory),
+      xpToNext,
+      hasRecentActivity: recentActivities.length > 0,
+    });
+  }, [userName, moodHistory, alreadyLoggedMoodToday, recentActivities, currentPlan, userXP]);
+
   const affirmation = useMemo(() => {
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
     const quoteArray = (activeRoute as any)?.dailyQuotes ?? DAILY_AFFIRMATIONS;
@@ -468,16 +480,33 @@ export default function HomeScreen() {
               <Pressable onPress={() => setShowNotifications(false)} style={styles.closeBtn}><Ionicons name="close" size={24} color={colors.textLight} /></Pressable>
             </View>
             <ScrollView style={styles.notifList} showsVerticalScrollIndicator={false}>
-              {NOTIFICATIONS_MOCK.map((notif, index) => (
-                <View key={notif.id} style={[styles.notifItem, index < NOTIFICATIONS_MOCK.length - 1 && { borderBottomWidth: 1, borderBottomColor: 'rgba(150,150,150,0.1)' }]}>
-                  <View style={[styles.notifIconWrap, { backgroundColor: Colors.mint + '20' }]}><Ionicons name="notifications" size={20} color={Colors.mint} /></View>
-                  <View style={styles.notifTextWrap}>
-                    <Text style={[styles.notifItemTitle, { color: colors.textPrimary }]}>{notif.title}</Text>
-                    <Text style={[styles.notifItemDesc, { color: colors.textSecondary }]}>{notif.desc}</Text>
-                    <Text style={[styles.notifItemTime, { color: colors.textLight }]}>{notif.time}</Text>
-                  </View>
-                </View>
-              ))}
+              {notifications.map((notif, index) => {
+                const go = () => {
+                  setShowNotifications(false);
+                  if (notif.route) router.push(notif.route as any);
+                };
+                return (
+                  <Pressable
+                    key={notif.id}
+                    onPress={go}
+                    disabled={!notif.route}
+                    style={({ pressed }) => [
+                      styles.notifItem,
+                      index < notifications.length - 1 && { borderBottomWidth: 1, borderBottomColor: 'rgba(150,150,150,0.1)' },
+                      pressed && notif.route ? { opacity: 0.6 } : null,
+                    ]}
+                  >
+                    <View style={[styles.notifIconWrap, { backgroundColor: notif.color + '20' }]}>
+                      <Ionicons name={notif.icon as any} size={20} color={notif.color} />
+                    </View>
+                    <View style={styles.notifTextWrap}>
+                      <Text style={[styles.notifItemTitle, { color: colors.textPrimary }]}>{notif.title}</Text>
+                      <Text style={[styles.notifItemDesc, { color: colors.textSecondary }]}>{notif.desc}</Text>
+                    </View>
+                    {notif.route && <Ionicons name="chevron-forward" size={16} color={colors.textLight} style={{ alignSelf: 'center' }} />}
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </Animated.View>
         </View>
