@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, FlatList, Share, Linking } from 'react-native';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -10,11 +10,15 @@ import { useStore, MoodType } from '../../store/useStore';
 import { useTheme } from '../../hooks/useTheme';
 import { SoundService } from '../../utils/SoundService';
 import * as Haptics from 'expo-haptics';
-import { NotificationService } from '../../utils/NotificationService';
+import * as Clipboard from 'expo-clipboard';
 import { CLINICAL_DISCLAIMER } from '../../constants/clinicalContent';
 import { AVATAR_CATEGORIES, getAvatarSource, AvatarItem } from '../../constants/avatars';
 import { getCurrentLevel, getNextLevel, getLevelProgress, ROUTE_PROGRESSIONS } from '../../constants/progressionSystem';
+import { FAQ_ITEMS, SUPPORT_EMAIL } from '../../constants/faq';
 import { supabase } from '../../lib/supabase';
+
+// Enlace público de invitación (landing con OpenGraph en /docs → GitHub Pages).
+const INVITE_URL = 'https://andresfrc.github.io/Anima/';
 
 const VARIANT_MAP: Record<string, string> = {
   ren_r4: 'fenix',
@@ -59,6 +63,8 @@ export default function PerfilScreen() {
   const [showInvite, setShowInvite] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const { toggleTheme, isDark, colors } = useTheme();
 
@@ -178,6 +184,33 @@ export default function PerfilScreen() {
         },
       },
     ]);
+  };
+
+  // ── Invitar amigos: abre la hoja nativa de compartir con un enlace real ─────
+  const handleInvite = async () => {
+    try {
+      await Share.share({
+        message: `Estoy usando Ánima para cuidar mi bienestar emocional 🌙 Te invito a probarla conmigo: ${INVITE_URL}`,
+        url: INVITE_URL, // iOS lo usa para la vista previa enriquecida
+      });
+    } catch {
+      // El usuario canceló o no hay forma de compartir; sin acción.
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    await Clipboard.setStringAsync(INVITE_URL);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Enlace copiado', 'Compártelo con quien quieras invitar 💙');
+  };
+
+  // ── Soporte: abre el cliente de correo con el correo real ───────────────────
+  const handleEmailSupport = () => {
+    const subject = encodeURIComponent('Soporte Ánima');
+    const body = encodeURIComponent('Hola equipo de Ánima,\n\nMi consulta es:\n\n');
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {
+      Alert.alert('Soporte', `Escríbenos a ${SUPPORT_EMAIL}`);
+    });
   };
 
   const avatarSource = getAvatarSource(profileAvatar);
@@ -332,10 +365,6 @@ export default function PerfilScreen() {
     { icon: 'compass-outline', label: 'Cambiar Mi Ruta', color: '#FCD34D', type: 'link', action: () => router.replace('/(onboarding)/select-plan') },
     { icon: 'moon-outline', label: 'Modo Lunar', color: colors.secondary, type: 'toggle', action: toggleTheme, active: isDark },
     { icon: 'notifications-outline', label: 'Notificaciones', color: colors.primary, type: 'toggle', action: () => toggleNotifications(!notificationsEnabled), active: notificationsEnabled },
-    { icon: 'alert-circle-outline', label: 'Probar Notificación', color: colors.accent, type: 'link', action: async () => {
-        Alert.alert('¡Prueba iniciada!', 'Sal de la app ahora. La notificación llegará en 5 segundos.');
-        await NotificationService.scheduleTestNotification();
-    }},
   ];
 
   const supportItems = [
@@ -545,13 +574,42 @@ export default function PerfilScreen() {
       {/* Modales de info — sin cambios */}
       <Modal visible={showPrivacy} transparent animationType="fade" onRequestClose={() => setShowPrivacy(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.bgCard }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.bgCard, maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Privacidad y Datos</Text>
               <Pressable onPress={() => setShowPrivacy(false)}><Ionicons name="close" size={24} color={colors.textLight} /></Pressable>
             </View>
-            <Text style={[styles.modalText, { color: colors.textSecondary }]}>Tus datos están encriptados y guardados de forma segura. Nadie más tiene acceso a tu historial clínico o registros de emociones.</Text>
-            <JewelButton title="Entendido" onPress={() => setShowPrivacy(false)} style={{ marginTop: 20 }} />
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              <Text style={[styles.policyIntro, { color: colors.textSecondary }]}>
+                En Ánima tu bienestar y tu privacidad son lo primero. Esto es lo que debes saber sobre tus datos:
+              </Text>
+
+              <Text style={[styles.policyHeading, { color: colors.textPrimary }]}>📋 Qué información guardamos</Text>
+              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                Tu nombre, correo, registros de ánimo, entradas de diario y tu progreso. Solo lo necesario para ofrecerte tu acompañamiento personalizado.
+              </Text>
+
+              <Text style={[styles.policyHeading, { color: colors.textPrimary }]}>🎯 Para qué la usamos</Text>
+              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                Únicamente para que la app funcione y adaptar la experiencia a tu momento. No vendemos tus datos ni los compartimos con terceros con fines publicitarios.
+              </Text>
+
+              <Text style={[styles.policyHeading, { color: colors.textPrimary }]}>🔒 Cómo los protegemos</Text>
+              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                Tu información se almacena en una infraestructura segura y está asociada a tu cuenta personal, protegida por tu contraseña. Te recomendamos usar una contraseña fuerte y única.
+              </Text>
+
+              <Text style={[styles.policyHeading, { color: colors.textPrimary }]}>✋ Tus derechos</Text>
+              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                Puedes editar tu perfil cuando quieras y solicitar la eliminación de tu cuenta y de todos tus datos escribiéndonos a {SUPPORT_EMAIL}.
+              </Text>
+
+              <Text style={[styles.policyHeading, { color: colors.textPrimary }]}>⚠️ Importante</Text>
+              <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                Ánima es una herramienta de autocuidado, no un servicio médico. Tus registros no constituyen una historia clínica oficial.
+              </Text>
+            </ScrollView>
+            <JewelButton title="Entendido" onPress={() => setShowPrivacy(false)} />
           </View>
         </View>
       </Modal>
@@ -577,10 +635,16 @@ export default function PerfilScreen() {
               <Pressable onPress={() => setShowInvite(false)}><Ionicons name="close" size={24} color={colors.textLight} /></Pressable>
             </View>
             <Text style={[styles.modalText, { color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }]}>Comparte el bienestar con las personas que más te importan.</Text>
-            <View style={[styles.inviteLinkBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7FAFC', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              <Text style={{ color: colors.textPrimary, fontFamily: 'Poppins_500Medium', flex: 1 }} numberOfLines={1}>anima.app/invitar/usuario123</Text>
+            <Pressable
+              onPress={handleCopyInvite}
+              style={[styles.inviteLinkBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7FAFC', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="Copiar enlace de invitación"
+            >
+              <Text style={{ color: colors.textPrimary, fontFamily: 'Poppins_500Medium', flex: 1 }} numberOfLines={1}>{INVITE_URL}</Text>
               <Ionicons name="copy-outline" size={20} color={colors.primary} />
-            </View>
+            </Pressable>
+            <JewelButton title="Compartir invitación" icon="share-social-outline" onPress={handleInvite} style={{ marginTop: 16 }} />
           </View>
         </View>
       </Modal>
@@ -592,15 +656,52 @@ export default function PerfilScreen() {
               <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Ayuda y Soporte</Text>
               <Pressable onPress={() => setShowHelp(false)}><Ionicons name="close" size={24} color={colors.textLight} /></Pressable>
             </View>
-            <Text style={[styles.modalText, { color: colors.textSecondary, marginBottom: 16 }]}>¿Tienes algún problema o duda sobre tu proceso en Anima?</Text>
-            <Pressable style={[styles.supportActionBtn, { backgroundColor: Colors.primary + '15' }]}>
+            <Text style={[styles.modalText, { color: colors.textSecondary, marginBottom: 16 }]}>¿Tienes algún problema o duda sobre tu proceso en Ánima? Estamos para ayudarte.</Text>
+            <Pressable onPress={handleEmailSupport} style={[styles.supportActionBtn, { backgroundColor: Colors.primary + '15' }]}>
               <Ionicons name="mail-outline" size={20} color={Colors.primary} />
-              <Text style={[styles.supportActionText, { color: Colors.primary }]}>Enviar un correo a soporte</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.supportActionText, { color: Colors.primary }]}>Enviar un correo a soporte</Text>
+                <Text style={{ fontSize: 12, fontFamily: 'Poppins_400Regular', color: colors.textLight }}>{SUPPORT_EMAIL}</Text>
+              </View>
             </Pressable>
-            <Pressable style={[styles.supportActionBtn, { backgroundColor: Colors.secondary + '15' }]}>
+            <Pressable onPress={() => { setShowHelp(false); setOpenFaq(null); setShowFaq(true); }} style={[styles.supportActionBtn, { backgroundColor: Colors.secondary + '15' }]}>
               <Ionicons name="book-outline" size={20} color={Colors.secondary} />
               <Text style={[styles.supportActionText, { color: Colors.secondary }]}>Leer Preguntas Frecuentes</Text>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL: Preguntas Frecuentes (FAQ) ── */}
+      <Modal visible={showFaq} transparent animationType="slide" onRequestClose={() => setShowFaq(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.avatarPickerContent, { backgroundColor: colors.bgCard, height: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Preguntas Frecuentes</Text>
+              <Pressable onPress={() => setShowFaq(false)}><Ionicons name="close" size={24} color={colors.textLight} /></Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {FAQ_ITEMS.map((item, i) => {
+                const open = openFaq === i;
+                return (
+                  <Pressable
+                    key={i}
+                    onPress={() => { Haptics.selectionAsync(); setOpenFaq(open ? null : i); }}
+                    style={[styles.faqItem, { borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}
+                  >
+                    <View style={styles.faqQuestionRow}>
+                      <Text style={[styles.faqQuestion, { color: colors.textPrimary }]}>{item.q}</Text>
+                      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textLight} />
+                    </View>
+                    {open && <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>{item.a}</Text>}
+                  </Pressable>
+                );
+              })}
+              <Pressable onPress={handleEmailSupport} style={[styles.supportActionBtn, { backgroundColor: Colors.primary + '15', marginTop: 16 }]}>
+                <Ionicons name="mail-outline" size={20} color={Colors.primary} />
+                <Text style={[styles.supportActionText, { color: Colors.primary }]}>¿No encuentras tu respuesta? Escríbenos</Text>
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -751,6 +852,12 @@ const styles = StyleSheet.create({
   inviteLinkBox: { flexDirection: 'row', alignItems: 'center', marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 1, width: '100%' },
   supportActionBtn: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, marginBottom: 12, gap: 12 },
   supportActionText: { fontSize: 14, fontFamily: 'Poppins_500Medium' },
+  policyIntro: { fontSize: 14, fontFamily: 'Poppins_400Regular', lineHeight: 22, marginBottom: 12 },
+  policyHeading: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', marginTop: 14, marginBottom: 4 },
+  faqItem: { paddingVertical: 14, borderBottomWidth: 1 },
+  faqQuestionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  faqQuestion: { flex: 1, fontSize: 14, fontFamily: 'Poppins_600SemiBold', lineHeight: 20 },
+  faqAnswer: { fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 21, marginTop: 8 },
   avatarPickerContent: { borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, paddingBottom: 40, maxHeight: '80%', ...Shadows.large },
   categoryTabs: { flexDirection: 'row', gap: 10, marginBottom: 20, marginTop: 4 },
   categoryTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },

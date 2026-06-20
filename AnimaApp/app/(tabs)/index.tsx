@@ -342,7 +342,7 @@ export default function HomeScreen() {
 
         {/* Feature buttons */}
         <Animated.View entering={FadeInUp.duration(400).delay(300)} style={styles.featureRow}>
-          <FeatureButton title="Gratitud" icon="star-outline" color="#FCD34D" onPress={() => router.push('/actividades/gratitud')} />
+          <FeatureButton title="Diario" icon="star-outline" color="#FCD34D" onPress={() => router.push('/actividades/gratitud')} />
           <FeatureButton title="Actividades" icon="sparkles-outline" color={Colors.secondary} onPress={() => router.push('/(tabs)/actividades')} />
           <FeatureButton title="Chat" icon="chatbubbles-outline" color={Colors.mint} onPress={() => router.push('/(tabs)/chat')} />
         </Animated.View>
