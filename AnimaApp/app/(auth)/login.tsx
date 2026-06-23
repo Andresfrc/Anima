@@ -119,7 +119,7 @@ export default function LoginScreen() {
       if (fetchedPlan) useStore.getState().setPlan(fetchedPlan);
       if (fetchedAvatar !== null) useStore.getState().setProfileAvatar(fetchedAvatar);
 
-      login(user.email || '', username);
+      login(user.id, user.email || '', username); 
       // No navegamos aquí: el layout raíz redirige automáticamente.
     } catch (err: any) {
       setAuthError(friendlyAuthError(err?.message));

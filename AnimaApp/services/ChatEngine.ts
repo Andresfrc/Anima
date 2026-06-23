@@ -3,8 +3,23 @@
 // URL del backend del chatbot (Lumi). Se lee de entorno para separar dev/prod.
 const API_URL = process.env.EXPO_PUBLIC_CHAT_API_URL ?? 'https://chatbot-lumi.onrender.com';
 
-export async function getBotResponse(userMessage: string, userId: string = 'default'): Promise<string> {
+/**
+ * Valida que un string sea un UUID v4 válido.
+ */
+function isValidUUID(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+}
+
+export async function getBotResponse(
+  userMessage: string,
+  userId?: string  // ← FIX: opcional, sin default 'default'
+): Promise<string> {
   try {
+    // ← FIX: Validar UUID antes de enviar. Si no es válido, no enviamos usuario_id
+    // (el backend puede manejar usuarios anónimos o rechazar según prefieras)
+    const finalUserId = isValidUUID(userId) ? userId : undefined;
+
     const response = await fetch(`${API_URL}/chat`, {
       method: 'POST',
       headers: {
@@ -12,7 +27,7 @@ export async function getBotResponse(userMessage: string, userId: string = 'defa
       },
       body: JSON.stringify({
         texto: userMessage,
-        usuario_id: userId,
+        ...(finalUserId && { usuario_id: finalUserId }),  // ← FIX: solo incluir si es UUID válido
       }),
     });
 

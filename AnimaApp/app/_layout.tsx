@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import SplashScreenComponent from '../components/SplashScreen';
 import { useStore } from '../store/useStore';
 import { NotificationService } from '../utils/NotificationService';
+import { supabase } from '../lib/supabase'; // ← FIX: importar supabase para auto-migración
 import XPToast from '../components/ui/XPToast';
 
 // Silencia el falso error de Expo Go sobre notificaciones remotas
@@ -40,6 +41,29 @@ function AppLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded]);
+
+  // ── FIX: Auto-migración de userId para usuarios existentes ──────────────
+  // Si el usuario está autenticado pero el store no tiene userId (loguearon
+  // antes de que el store guardara userId), lo recuperamos de Supabase Auth.
+  // Corre solo una vez: después de hidratación y cuando isAuthenticated es true.
+  useEffect(() => {
+    if (!hasHydrated || !isAuthenticated) return;
+
+    const userId = useStore.getState().userId;
+    if (userId) return; // Ya tiene UUID, nada que hacer
+
+    // userId es null pero está autenticado → recuperar de Supabase
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (error || !user) return;
+      useStore.getState().login(
+        user.id,
+        user.email || useStore.getState().userEmail,
+        useStore.getState().userName
+      );
+      console.log('[Layout] userId sincronizado desde Supabase Auth:', user.id);
+    });
+  }, [hasHydrated, isAuthenticated]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     // Solo redirigir cuando (1) el splash terminó —garantiza que el Stack ya se

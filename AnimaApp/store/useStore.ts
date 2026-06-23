@@ -75,6 +75,7 @@ export interface JournalEntry {
 interface AppState {
   // Auth
   isAuthenticated: boolean;
+  userId: string | null;
   userName: string;
   userEmail: string;
   profileAvatar: string | null;
@@ -133,7 +134,7 @@ interface AppState {
   unlockedRewards: string[];
   
   // Actions
-  login: (email: string, name: string) => void;
+  login: (userId: string, email: string, name: string) => void;
   updateUser: (name: string) => void;
   setProfileAvatar: (avatarId: string | null) => void;
   logout: () => void;
@@ -262,13 +263,13 @@ export const useStore = create<AppState>()(
         unlockedRewards: [],
 
         // Actions
-        login: (email, name) => set({ isAuthenticated: true, userEmail: email, userName: name || 'Usuario' }),
+        login: (userId,email, name) => set({ isAuthenticated: true, userId,   userEmail: email, userName: name || 'Usuario' }),
         updateUser: (name) => set({ userName: name }),
         setProfileAvatar: (avatarId) => set({ profileAvatar: avatarId }),
         logout: () => {
           SoundService.stopAmbient();
           set({
-            isAuthenticated: false, userName: '', userEmail: '', profileAvatar: null,
+            isAuthenticated: false, userId: null,   userName: '', userEmail: '', profileAvatar: null,
             messages: [], currentPlan: null, recommendedPlan: null,
             currentMood: null, moodHistory: [], weeklyMoodData: [0, 0, 0, 0, 0, 0, 0],
             journalEntries: [], recentActivities: [],
@@ -363,7 +364,7 @@ export const useStore = create<AppState>()(
           set({ moodHistory: updated, weeklyMoodData: newWeekly });
         },
         sendMessage: (text) => {
-          const { messages } = get();
+          const { messages, userId } = get();
           const userMsg: ChatMessage = {
             id: Date.now().toString(),
             text,
@@ -375,7 +376,7 @@ export const useStore = create<AppState>()(
           // ChatEngine es un servicio externo asíncrono (API real).
           // FIX: getBotResponse devuelve Promise<string>; antes se asignaba la Promise
           // directamente a `text`, por lo que el chat mostraba "[object Promise]".
-          getBotResponse(text)
+          getBotResponse(text, userId ?? undefined)
             .then((reply) => {
               const botMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
@@ -544,6 +545,7 @@ export const useStore = create<AppState>()(
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         userName: state.userName,
+        userId: state.userId,
         userEmail: state.userEmail,
         profileAvatar: state.profileAvatar,
         notificationsEnabled: state.notificationsEnabled,
