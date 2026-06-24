@@ -1,10 +1,11 @@
 /**
  * supabaseSync.ts
- * Sincroniza moodHistory, userXP y currentStreak entre Supabase y el store local.
+ * Sincroniza moodHistory, userXP, currentStreak y level entre Supabase y el store local.
  */
 import { supabase } from '../lib/supabase';
 import { useStore } from '../store/useStore';
 import { MoodType } from '../constants/theme';
+import { getCurrentLevel } from '../constants/progressionSystem';
 
 // ── ISO completo con offset local, ej: "2026-06-17T20:30:00-05:00" ───────────
 function getLocalISOString(): string {
@@ -70,7 +71,7 @@ export async function loadMoodHistory(userId: string) {
   console.log(`✅ Cargados ${moodEntries.length} registros de ánimo`);
 }
 
-// ── 2. CARGAR progreso (XP, streak) desde Supabase al store ──────────────────
+// ── 2. CARGAR progreso (XP, streak, level) desde Supabase al store ────────────
 export async function loadUserProgress(userId: string) {
   const { data, error } = await supabase
     .from('user_progress')
@@ -91,44 +92,49 @@ export async function loadUserProgress(userId: string) {
   const supabaseXP = data.xp ?? 0;
 
   useStore.setState({
-    userXP: Math.max(storeXP, supabaseXP),
-    currentStreak: data.current_streak ?? 0,
+    userXP:         Math.max(storeXP, supabaseXP),
+    currentStreak:  data.current_streak ?? 0,
     lastActiveDate: data.last_active_date ?? null,
     unlockedTitles: data.unlocked_titles ?? [],
   });
 
-  console.log(`✅ Progreso cargado: XP=${data.xp}, Racha=${data.current_streak}`);
+  console.log(`✅ Progreso cargado: XP=${data.xp}, Level=${data.level ?? 1}, Racha=${data.current_streak}`);
 }
 
 // ── 3. GUARDAR progreso en Supabase (upsert) ──────────────────────────────────
 export async function saveUserProgress(userId: string) {
   const state = useStore.getState();
 
+  // Calcular nivel actual basado en XP + plan
+  const plan = state.currentPlan || 'balance';
+  const currentLevel = getCurrentLevel(plan, state.userXP);
+
   const { error } = await supabase
     .from('user_progress')
     .upsert({
-      user_id: userId,
-      xp: state.userXP,
-      current_streak: state.currentStreak,
+      user_id:          userId,
+      xp:               state.userXP,
+      level:            currentLevel.level,   // ← guardamos el nivel
+      current_streak:   state.currentStreak,
       last_active_date: state.lastActiveDate,
-      current_plan: state.currentPlan,
-      unlocked_titles: state.unlockedTitles,
-      updated_at: new Date().toISOString(),
+      current_plan:     state.currentPlan,
+      unlocked_titles:  state.unlockedTitles,
+      updated_at:       new Date().toISOString(),
     }, { onConflict: 'user_id' });
 
   if (error) {
     console.log('Error guardando user_progress:', error);
   } else {
-    console.log('✅ Progreso guardado en Supabase');
+    console.log(`✅ Progreso guardado: XP=${state.userXP}, Level=${currentLevel.level}`);
   }
 }
 
 // ── 4. GUARDAR mood en mood_logs + actualizar progreso ────────────────────────
 export async function saveMoodToSupabase(userId: string, mood: string, note?: string) {
   const localISO = getLocalISOString();
-  const todayStr = localISO.substring(0, 10); // "2026-06-17"
+  const todayStr = localISO.substring(0, 10);
 
-  // FIX: verificar si ya existe un registro hoy antes de insertar
+  // Verificar si ya existe un registro hoy antes de insertar
   const { data: existing } = await supabase
     .from('mood_logs')
     .select('id')
