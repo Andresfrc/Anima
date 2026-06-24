@@ -222,6 +222,7 @@ export const useStore = create<AppState>()(
 
         // Auth
         isAuthenticated: false,
+        userId: null,
         userName: '',
         userEmail: '',
         profileAvatar: null,

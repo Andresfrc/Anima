@@ -128,7 +128,11 @@ export default function RegisterScreen() {
       // ── 4. Sesión activa ───────────────────────────────────────────────────
       // La navegación la decide el layout raíz (_layout.tsx) según
       // isAuthenticated + currentPlan. Aquí solo marcamos la sesión.
-      login(email.trim(), name.trim());
+      login(
+  user.id,
+  email.trim(),
+  name.trim()
+);
 
     } catch (err: any) {
       setAuthError(friendlyAuthError(err?.message));
