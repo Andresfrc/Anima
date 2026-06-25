@@ -133,7 +133,12 @@ export class NotificationService {
    */
   static async scheduleDailyReminders(plan: string | null) {
     try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      // Cancelación DIRIGIDA (no cancelAll): solo borramos los recordatorios que
+      // este método gestiona, para no eliminar one-offs como la confirmación de
+      // activación. La inactividad se limpia dentro de scheduleInactivityReminder.
+      for (const id of ['morning_motivation', 'midday_selfcare', 'evening_checkin', 'weekly_reflection']) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+      }
       const r = getReminders(plan);
 
       await Notifications.scheduleNotificationAsync({
@@ -194,6 +199,27 @@ export class NotificationService {
       });
     } catch (e) {
       console.log('Error notif inactividad (probablemente Expo Go):', e);
+    }
+  }
+
+  /**
+   * Confirmación al ACTIVAR las notificaciones: suena ~6s después para que el
+   * usuario verifique que funcionan (en dispositivo real / dev build).
+   */
+  static async scheduleEnableConfirmation() {
+    try {
+      await Notifications.cancelScheduledNotificationAsync('enable_confirmation').catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'enable_confirmation',
+        content: {
+          title: '🔔 Notificaciones activadas',
+          body: 'Listo. Te acompañaré con recordatorios para cuidar tu bienestar.',
+          color: '#C8B6FF', sound: true, data: { type: 'confirmation' },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 6, repeats: false },
+      });
+    } catch (e) {
+      console.log('Error confirmación notificaciones (probablemente Expo Go):', e);
     }
   }
 }

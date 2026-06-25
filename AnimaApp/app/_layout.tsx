@@ -2,7 +2,7 @@ import '../utils/silenceLogs'; // Silencia console.log/info/debug en producción
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, AppState, LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,6 +27,7 @@ function AppLayout() {
   const isAuthenticated = useStore((s) => s.isAuthenticated);
   const currentPlan = useStore((s) => s.currentPlan);
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
+  const segments = useSegments();
 
   // Load premium fonts
   const [fontsLoaded] = useFonts({
@@ -67,19 +68,29 @@ function AppLayout() {
 
   useEffect(() => {
     // Solo redirigir cuando (1) el splash terminó —garantiza que el Stack ya se
-    // montó en el commit de este cambio, así router.replace no truena con
-    // "navigate before mounting"— y (2) el store hidrató desde AsyncStorage —si
-    // no, isAuthenticated aún es false y se ve un flash del login antes de entrar.
+    // montó— y (2) el store hidrató desde AsyncStorage.
     if (showSplash || !hasHydrated) return;
 
+    // FIX (rebote): usamos el grupo actual (useSegments) para SOLO redirigir
+    // cuando el usuario está en el stack equivocado para su estado. Antes, esta
+    // lógica hacía router.replace('/(tabs)') en CADA cambio de currentPlan, lo
+    // que expulsaba al usuario de Perfil al entrar (cuando loadProgress pisaba
+    // el plan) o al cambiar de ruta.
+    const root = segments[0] as string | undefined;
+    const inAuth = root === '(auth)';
+    const inOnboarding = root === '(onboarding)';
+
     if (!isAuthenticated) {
-      router.replace('/(auth)/login');
+      if (!inAuth) router.replace('/(auth)/login');
     } else if (!currentPlan) {
-      router.replace('/(onboarding)/triage');
+      // Autenticado sin ruta → onboarding (a menos que ya esté ahí).
+      if (!inOnboarding) router.replace('/(onboarding)/triage');
     } else {
-      router.replace('/(tabs)');
+      // Autenticado CON ruta: solo lo llevamos a la app si está atascado en auth.
+      // NO redirigimos por cambios de currentPlan estando ya dentro de la app.
+      if (inAuth) router.replace('/(tabs)');
     }
-  }, [showSplash, hasHydrated, isAuthenticated, currentPlan]);
+  }, [showSplash, hasHydrated, isAuthenticated, currentPlan, segments]);
 
   // Initialize notifications — recordatorios diarios personalizados según la ruta.
   useEffect(() => {

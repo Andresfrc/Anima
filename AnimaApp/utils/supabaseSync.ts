@@ -3,7 +3,7 @@
  * Sincroniza moodHistory, userXP, currentStreak y level entre Supabase y el store local.
  */
 import { supabase } from '../lib/supabase';
-import { useStore } from '../store/useStore';
+import { useStore, MoodEntry } from '../store/useStore';
 import { MoodType } from '../constants/theme';
 import { getCurrentLevel } from '../constants/progressionSystem';
 
@@ -61,14 +61,33 @@ export async function loadMoodHistory(userId: string) {
   const scores: Record<string, number> = {
     animado: 5, mejor: 4, neutral: 3, triste: 2, muy_triste: 1,
   };
-  const last7 = moodEntries.slice(0, 7);
+  // FIX (racha intermitente): MERGE por día en vez de REEMPLAZAR. Supabase manda
+  // para los días que tiene; conservamos los días LOCALES que aún no están en el
+  // servidor (p. ej. el registro de HOY si todavía no sincronizó). Así no se
+  // pierde el día de hoy y la racha deja de "desaparecer".
+  const dayKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const localHistory = useStore.getState().moodHistory;
+  const byDay = new Map<string, MoodEntry>();
+  for (const e of moodEntries) byDay.set(dayKey(e.date), e);          // servidor primero
+  for (const e of localHistory) {                                     // local rellena días faltantes
+    const k = dayKey(e.date);
+    if (!byDay.has(k)) byDay.set(k, e);
+  }
+  const merged = Array.from(byDay.values()).sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  const last7 = merged.slice(0, 7);
   const weeklyMoodData = Array.from({ length: 7 }, (_, i) => {
     const entry = last7[6 - i];
     return entry ? scores[entry.mood] || 0 : 0;
   });
 
-  useStore.setState({ moodHistory: moodEntries, weeklyMoodData });
-  console.log(`✅ Cargados ${moodEntries.length} registros de ánimo`);
+  useStore.setState({ moodHistory: merged, weeklyMoodData });
+  console.log(`✅ Cargados ${merged.length} registros de ánimo (merge local+servidor)`);
 }
 
 // ── 2. CARGAR progreso (XP, streak, level) desde Supabase al store ────────────
@@ -88,14 +107,16 @@ export async function loadUserProgress(userId: string) {
 
   if (!data) return;
 
-  const storeXP = useStore.getState().userXP;
+  const s = useStore.getState();
   const supabaseXP = data.xp ?? 0;
 
   useStore.setState({
-    userXP:         Math.max(storeXP, supabaseXP),
-    currentStreak:  data.current_streak ?? 0,
-    lastActiveDate: data.last_active_date ?? null,
-    unlockedTitles: data.unlocked_titles ?? [],
+    // No regresar el progreso local (mismo criterio que loadProgressFromSupabase).
+    userXP:         Math.max(s.userXP, supabaseXP),
+    currentStreak:  Math.max(s.currentStreak, data.current_streak ?? 0),
+    lastActiveDate: s.lastActiveDate ?? data.last_active_date ?? null,
+    // Unión: nunca perder títulos desbloqueados.
+    unlockedTitles: Array.from(new Set([...(s.unlockedTitles ?? []), ...(data.unlocked_titles ?? [])])),
   });
 
   console.log(`✅ Progreso cargado: XP=${data.xp}, Level=${data.level ?? 1}, Racha=${data.current_streak}`);

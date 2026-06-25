@@ -284,11 +284,26 @@ export const useStore = create<AppState>()(
         hideSplash: () => set({ showSplash: false }),
         toggleNotifications: (enabled: boolean) => {
           set({ notificationsEnabled: enabled });
-          if (!enabled) {
+          if (enabled) {
+            // Al activar: pedir permiso, programar recordatorios y una
+            // confirmación inmediata para que el usuario vea que funcionan.
+            NotificationService.requestPermissionsAsync().then((granted) => {
+              if (granted) {
+                NotificationService.scheduleDailyReminders(get().currentPlan);
+                NotificationService.scheduleEnableConfirmation();
+              }
+            });
+          } else {
             NotificationService.cancelAllScheduledNotifications();
           }
         },
         setCrisisRegion: (region) => set({ crisisRegion: region }),
+        // ⚠️ setPlan SOLO actualiza el plan; NO sincroniza todo el progreso.
+        // login.tsx llama setPlan ANTES de cargar el progreso real, así que un
+        // sync aquí escribía xp=0 en Supabase y borraba el progreso del usuario.
+        // El plan se persiste por otras vías (profiles.plan en select-plan, y
+        // syncProgressToSupabase al ganar XP). loadProgressFromSupabase ya
+        // prioriza el plan local, así que la ruta no se revierte.
         setPlan: (planId) => set({ currentPlan: planId }),
         setRecommendedPlan: (planId) => set({ recommendedPlan: planId }),
         setMood: (mood) => set({ currentMood: mood }),
@@ -522,16 +537,26 @@ export const useStore = create<AppState>()(
 
           if (error || !data) return;
 
+          const s = get();
+          const union = (a?: string[] | null, b?: string[] | null) =>
+            Array.from(new Set([...(a ?? []), ...(b ?? [])]));
+
           set({
-            userXP: data.xp ?? get().userXP,
-            currentStreak: data.current_streak ?? get().currentStreak,
-            lastActiveDate: data.last_active_date ?? get().lastActiveDate,
-            currentPlan: data.current_plan ?? get().currentPlan,
-            unlockedTitles: data.unlocked_titles ?? get().unlockedTitles,
-            unlockedRewards: data.unlocked_rewards ?? get().unlockedRewards,
-            activeTitle: data.active_title ?? get().activeTitle,
-            activeSound: data.active_sound ?? get().activeSound,
-            activeLumiVariant: data.active_lumi_variant ?? get().activeLumiVariant,
+            // ⚠️ NUNCA regresar el progreso local. El XP toma el MAYOR (local vs
+            // servidor). Antes esto pisaba el XP local con un valor viejo/0 del
+            // servidor y el NIVEL "se reiniciaba a 1" al entrar a Perfil.
+            userXP: Math.max(s.userXP, data.xp ?? 0),
+            currentStreak: Math.max(s.currentStreak, data.current_streak ?? 0),
+            lastActiveDate: s.lastActiveDate ?? data.last_active_date ?? null,
+            // El plan LOCAL manda (elección más reciente); servidor solo si local es null.
+            currentPlan: s.currentPlan ?? data.current_plan,
+            // Nunca perder desbloqueos: unión de local + servidor.
+            unlockedTitles: union(s.unlockedTitles, data.unlocked_titles),
+            unlockedRewards: union(s.unlockedRewards, data.unlocked_rewards),
+            // Elecciones del usuario: prevalece la local.
+            activeTitle: s.activeTitle ?? data.active_title,
+            activeSound: s.activeSound ?? data.active_sound,
+            activeLumiVariant: s.activeLumiVariant ?? data.active_lumi_variant,
           });
         },
       };
